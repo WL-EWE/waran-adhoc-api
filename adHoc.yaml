@@ -1,0 +1,811 @@
+openapi: 3.0.3
+
+info:
+  title: WARAN - Impuls zur Anpassung der Ad-Hoc-Steuerungs-API
+  version: 0.9.4
+  description: >
+    Aufbauend auf dem bereits existierenden API-Webdienst zur prozessualen Abwicklung von Steuerungshandlungen (https://edi-energy.github.io/api-electricity/aktuell-gueltig/#/), werden im vorliegenden Abschnitt Erweiterungen vorgeschlagen, die es den Marktakteuren ermöglichen das volle Potential der Ad-hoc Steuerung zu nutzen. Der Vorschlag orientiert sich an der bisherigen, gültigen Version, ist aber nicht kompatibel da neue Dienste und Strukturen bzw. Bezeichnungen verwendet werden. Es handelt sich somit um einen fachlichen Vorschlag für ein neues Major Release. 
+    
+
+    Zur eindeutigen fachlichen Zuordnung der Steuerungsdienste, soll zunächst präzisiert werden, dass die lokale Weitergabe der Ad-hoc Steuerungshandlungen verbrauchsseitig stets über den EEBUS UseCase LPC und einspeiseseitig stets über den EEBUS UseCase LPP erfolgt.* Neben dem kurativen Ad-hoc Eingriff des Netzbetreiber (bspw. nach §14a EnWG) ist es vorgesehen die Steuerungssignale auch im Kontext weiterer netzstabilisierender Maßnahmen zu verwenden. Dazu zählen u.a. Fallbackszenarien, um im Falle von Kommunikationsstörungen oder bei Spannungswiederkehr ein definiertes Verhalten der steuerbaren Anlagen zu gewährleisten. Damit die unterschiedlichen Szenarien konfliktfrei eingesetzt werden können, sind Definitionen und Prioritäten bei der Umsetzung zu berücksichtigen. Die Berücksichtigung der Prioritäten und die Weitergabe der Steuerungshandlungen an die Steuerungseinrichtung bzw. an die steuerbare Einrichtung orientiert sich dabei u.a. an dem VDE FNN Hinweis „Steuerungs-Administration“. Insbesondere das Konzept des Residualprofils wird aufgegriffen und als geeignete Möglichkeit identifiziert, die unterschiedlichen Signale im Backend des Messstellenbetreibers zu harmonisieren. Im aktuellen Abschnitt meint das Ad-hoc Residualprofil dabei die jeweiligen LPC und LPP Werte, die als auszuführendes Array an Werten auf die Steuerungseinrichtung übertragen werden. Die Werte können dabei einen zeitlichen Horizont von mehreren Stunden oder Tagen abdecken. Jeder neue Aufruf sorgt für eine Aktualisierung des Residualprofils.
+
+
+    Ingesamt ergeben sich die folgenden API Dienste die mit der entsprechenden Berechtigung beim MSB bestellt und genutzt werden können:
+      - AdHoc-01 "Priorisierte Ad-hoc Steuerungen" wird ins Residualprofil übernommen und überschreibt zyklische bzw. ältere AdHoc Steuerungshandlungen
+      - AdHoc-02 "Zyklische AdHoc Steuerung" wird ins Residualprofil übernommen und täglich wiederkehrend ausgeführt. Kann durch neuere AdHoc Anweisungen übersteuert werden. 
+      - AdHoc-03 "Softstart" Wird unabhängig vom Residualprofil aktiviert, sobald es einen unerwarteten Neustart der Steuerungseinrictung gibt (Spannungswiederkehr). Wird mit höchster Priorität ausgeführt und übersteuert somit das Ad-hoc Residualprofil.
+      - AdHoc-04 "Failsafe-Konfiguration" Konfiguration der Failsafe Werte gemäß EEBUS LPC / LPP Szenario 2
+      - AdHoc-05 "Löschen vorhandener Ad-hoc Steuerungen" setzt die Anweisungen des jeweiligen Absenders auf den ursprünglichen Zustand (i.d.R. unbegrenzt bzw. 100%) zurück. Optional kann das entsprechende Profil zum Zurücksetzen angegeben werden.
+
+
+
+    *Fokus liegt auf der digitalen Schnittstelle. Insbesondere im Falle von Steuerungsdiensten ist zu erwarten, dass diese das Zielbild und den zukünftigen Standard abdeckt. Die fachliche Ausprägung der Prozesse und API-Dienste sollte daher stets mit Fokus auf die digitale Steuerung gemäß der VDE-AR-E-2829-6-1 erfolgen. Eine Abwärtskompatibilität zum Relais kann für die einfachen Steuersignale in der Regel gewährleistet werden, ist aber nicht Fokus der vorliegenden Spezifikation. 
+
+servers:
+  - url: https://api.example.de
+
+tags:
+  - name: Anweisung AdHoc Steuerungshandlung
+    description: MSB = API-Anbieter (Server)
+  - name: Antwort AdHoc Steuerungshandlung
+    description: MSB = API-Nutzer (Client)
+  - name: Mitteilung AdHoc Steuerungshandlung an Berechtigte
+    description: MSB = API-Nutzer (Client)
+
+paths:
+
+  /anweisung/adHoc/steuerbefehl/v0:
+    post:
+      tags: [Anweisung AdHoc Steuerungshandlung]
+      summary: AdHoc-01 -> Priorisierte Ad-hoc-Steuerung
+      description: >
+        Aufbauend auf dem bestehenden API-Webdienst zur Steuerung, werden inhaltliche Anpassungen bzw. Erweiterungen vorgeschlagen. Zu den Anpassungen zählen bspw. die Berücksichtigung der Energierichtung. Die Werte werden je Energierichtung in das jeweilige Ad-hoc Residualprofil übernommen und mit hoher Priorität umgesetzt. Die Ad-hoc Residualprofile (LPC-RP / LPP-RP) können im Backend des MSB gebildet und an die Steuerungseinrichtung weitergereicht werden. Sie entsprechen dabei den Steuerungsanwendungsfällen 1 und 2 gemäß Implementierungshinweis des BSI (SAF1 / SAF2).
+        
+
+        **Mögliche energiewirtschaftliche Szenarien:**
+          -	VNB - §14a EnWG „Notfallsignal" -> LPC RP  
+          -	VNB - §9 EEG „Notfallsignal“ -> LPP RP
+          -	VNB - Redispatch (2.0/3.0) -> LPP RP*
+          -	LF – Direktvermarktung u.a. § §10b EEG – LPP RP**
+
+        *Für Redispatch wird (bei Verfügbarkeit) der Hüllkurven Anwendungsfall empfohlen. Durch die Prognosebasis sind Eingriffe in der Regel mit ausreichend Vorlauf bekannt, sodass eine lokale Optimierung auf dem Energiemanagement erreicht werden kann.
+
+
+        **„Marktliche Steuerung“ durch bspw. Direktvermarkter ist grundsätzlich auch mit Ad-hoc Steuerungssignalen umsetzbar. Es gilt zu beachten, dass der technische Use Case (LPC/LPP) nicht für die marktliche Anwendung bestimmt ist. Missverständnisse bei der Umsetzung, aufgrund der Darstellung als Netzengpasssignal auf der Kundenseite sind zu erwarten. Für die marktliche Steuerung wird daher der Flexband bzw. Hüllkurven Anwendungsfall empfohlen.
+
+        
+        **Einschränkung:** "excecutionTimeUntil" darf maximal 24h in der Zukunft liegen
+        
+      operationId: postAdHocPrio
+      parameters:
+        - $ref: '#/components/parameters/transactionId'
+        - $ref: '#/components/parameters/creationDateTime'
+        - $ref: '#/components/parameters/initialTransactionId'
+       # - $ref: '#/components/parameters/controlActor'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdHocPrioRequest'
+      responses:
+        '202':
+          description: accepted
+        '400':
+          description: Bad Request
+        '401':
+          description: Unauthorized
+        '404':
+          description: Not Found
+        '405':
+          description: Method not allowed
+        '415':
+          description: Unsupported Media Type
+        '422': 
+          description: Unprocessable Entity
+        '429':
+          description: Too Many Requests
+        '500':
+          description: Internal Server Error
+        '503':
+          description: Service Unavailable
+        '504':
+          description: Gateway Timeout
+
+ 
+
+  /konfiguration/adHoc/softstart/v0:
+    post:
+      tags: [Anweisung AdHoc Steuerungshandlung]
+      summary: AdHoc-02 -> Softstartprofil
+      description: >
+        Ein Softstart Ad-hoc Profil (LPC/LPP SSt) welches dediziert auf der Steuerungseinrichtung hinterlegt wird und nur bei einer lokalen Spannungsunterbrechung aktiviert wird. Wird mit höchster Priorität ausgeführt und übersteuert somit das Ad-hoc Residualprofil (LPC RP / LPP RP). Sofern die Verbindung zum Backend wieder hergestellt ist, wird ein aktiviertes Softstartprofil über den API Dienst "AdHoc-08" transparent gemacht und kann über den API Dienst "AdHoc-05" zurückgesetzt werden. Soll ein bereits hinterlegtes Softartprofil von der Steuerungseinrichtung entfernt werden, muss ein leeres Softstartprofil gesendet werden. 
+        Die Softstart Profile (LPC SSt / LPP SSt) entsprechen den Steuerungsanwendungsfällen 5 und 6 gemäß Implementierungshinweis des BSI (SAF5 / SAF6). 
+
+
+        **Mögliche energiewirtschaftliche Szenarien:**
+          - VNB - Netzstabilität nach Spannungswiederkehr -> LPC/LPP SSt
+
+        **Einschränkung:** Nur durch den VNB zulässig
+      responses:
+        '202':
+          description: accepted
+        '400':
+          description: Bad Request
+        '401':
+          description: Unauthorized
+        '404':
+          description: Not Found
+        '405':
+          description: Method not allowed
+        '415':
+          description: Unsupported Media Type
+        '422': 
+          description: Unprocessable Entity
+        '429':
+          description: Too Many Requests
+        '500':
+          description: Internal Server Error
+        '503':
+          description: Service Unavailable
+        '504':
+          description: Gateway Timeout        
+
+
+  /konfiguration/adHoc/failsafe/v0:
+    post:
+      tags: [Anweisung AdHoc Steuerungshandlung]
+      summary: AdHoc-03 -> Failsafe-Konfiguration
+      description: >
+        Konfiguration des Failsafe Werte gemäß EEBUS LPC / LPP Szenario 2. Wird über die Infrastruktur bis zur steuerbaren Anlage durchgereicht und dort bei lokalem Kommunikationsausfall aktiviert.
+        Die Failsafe Werte (LPC FS / LPP FS) entsprechen den Steuerungsanwendungsfällen 3 und 4 gemäß Implementierungshinweis des BSI (SAF3 / SAF4).
+
+        
+        **Mögliche energiewirtscgaftliche Szenarien:**
+          - VNB – Definiertes Verhalten bei einer temporären lokalen Kommunikationsstörung 
+          
+        **Einschränkung:** Nur durch den VNB zulässig
+
+
+      operationId: postFailsafe
+      parameters:
+        - $ref: '#/components/parameters/transactionId'
+        - $ref: '#/components/parameters/creationDateTime'
+        - $ref: '#/components/parameters/initialTransactionId'
+       # - $ref: '#/components/parameters/controlActor'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FailsafeRequest'
+      responses:
+        '202':
+          description: accepted
+        '400':
+          description: Bad Request
+        '401':
+          description: Unauthorized
+        '404':
+          description: Not Found
+        '405':
+          description: Method not allowed
+        '415':
+          description: Unsupported Media Type
+        '422': 
+          description: Unprocessable Entity
+        '429':
+          description: Too Many Requests
+        '500':
+          description: Internal Server Error
+        '503':
+          description: Service Unavailable
+        '504':
+          description: Gateway Timeout
+
+  /konfiguration/adHoc/wanFailure/v0:
+    post:
+      tags: [Anweisung AdHoc Steuerungshandlung]
+      summary: AdHoc-04 -> Kommunikationsausfall (nur bei FNN Steuerbox)
+      description: >
+        TBA
+        
+        **Mögliche energiewirtscgaftliche Szenarien:**
+          - VNB – Definiertes Verhalten bei einer WAN-Kommunikationsstörung 
+          
+        **Einschränkung:** Nur durch den VNB zulässig
+
+
+      operationId: communicationFailure
+      parameters:
+        - $ref: '#/components/parameters/transactionId'
+        - $ref: '#/components/parameters/creationDateTime'
+        - $ref: '#/components/parameters/initialTransactionId'
+       # - $ref: '#/components/parameters/controlActor'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/communicationFailure'
+      responses:
+        '202':
+          description: accepted
+        '400':
+          description: Bad Request
+        '401':
+          description: Unauthorized
+        '404':
+          description: Not Found
+        '405':
+          description: Method not allowed
+        '415':
+          description: Unsupported Media Type
+        '422': 
+          description: Unprocessable Entity
+        '429':
+          description: Too Many Requests
+        '500':
+          description: Internal Server Error
+        '503':
+          description: Service Unavailable
+        '504':
+          description: Gateway Timeout
+
+  /ruecknahme/adHoc/steuerbefehl/v0:
+    post:
+      tags: [Anweisung AdHoc Steuerungshandlung]
+      summary: AdHoc-05 -> Ruecknahme Ad-hoc-Steuerungen
+      description: >
+        Erlaubt die Deaktivierung oder das Zurücksetzen von zuvor übermittelten AdHoc Steuerungsprofilen. Es werden alle betroffenen Einträge des Absenders, die nach dem gewünschten Änderungszeitpunkt liegen, im jeweiligen AdHoc Profil adressiert (also gelöscht oder zurückgesetzt). Für die Profile "AdHoc-01" und "AdHoc-02" bedeutet der Aufruf, dass alle Einträge nach der definierten "adHocStopTime" aus dem jeweiligen Residualprofil entfernt werden und somit nicht mehr bzw. nur verkürzt als bis zur Endzeit umgesetzt werden. Für das Softstart Profil "AdHoc-03" gilt eine Besonderheit, hier sorgt der Reset-Aufruf lediglich für ein Zurücksetzen des aktiven Softstartprofils zum gewünschten Zeitpunkt. Diese ist nur umsetzbar, sofern auch ein Softstart aktiviert wurde (diese Information wird über den entsprechenden Informationsdienst "AdHoc-08" transparent gemacht). Das grundsätzliche Softstartprofil bleibt also erhalten und wird nach der nächsten Spannungsunterbrechung erneut aktiviert. Soll das Softstartprofil von der Steuerungseinrichtung entfernt werden, muss über den entsprechnden Aufruf "AdHoc-03" ein leeres Softstartprofil gesendet werden.
+
+
+        Wird keine "adHocStopTime" angegeben, wirkt der Befehl unverzüglich. Wenn kein "stopProfile" angegeben wird, wirkt der Befehl für alle aktiven Profile des Absenders. Betroffen sind immer beide Energierichtungen.
+
+      operationId: postInitialZustand
+      parameters:
+        - $ref: '#/components/parameters/transactionId'
+        - $ref: '#/components/parameters/creationDateTime'
+        - $ref: '#/components/parameters/initialTransactionId'
+      #  - $ref: '#/components/parameters/controlActor'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InitialZustandRequest'
+      responses:
+        '202':
+          description: accepted
+        '400':
+          description: Bad Request
+        '401':
+          description: Unauthorized
+        '404':
+          description: Not Found
+        '405':
+          description: Method not allowed
+        '415':
+          description: Unsupported Media Type
+        '422': 
+          description: Unprocessable Entity
+        '429':
+          description: Too Many Requests
+        '500':
+          description: Internal Server Error
+        '503':
+          description: Service Unavailable
+        '504':
+          description: Gateway Timeout
+
+  /adHoc/preliminaryResponse/v0:
+    post:
+      tags: [Antwort AdHoc Steuerungshandlung]
+      summary: AdHoc-06 -> Vorläufige Antwort
+      description: >
+       Anpassung und Erweiterung der vorläufigen Rückmeldung. Unter anderem wurden zusätzliche ResponseCodes eingeführt, um eine möglichst präzise Rückmeldung an den auslösenden Akteur zu übermitteln.
+
+       Die vorläufige Antwort wird unmittelbar nach fachlicher Prüfung der Steuerungsanweisung versendet, unabhängig davon, ob die Steuerungseinrichtung den Befehl tatsächlich umsetzen kann.
+      operationId: postPreliminaryResponse
+      parameters:
+        - $ref: '#/components/parameters/transactionId'
+        - $ref: '#/components/parameters/creationDateTime'
+        - $ref: '#/components/parameters/initialTransactionId'
+        - $ref: '#/components/parameters/referenceId'
+
+       # - $ref: '#/components/parameters/controlActor'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PreliminaryResponse'
+      responses:
+        '202':
+          description: accepted
+        '400':
+          description: Bad Request
+        '401':
+          description: Unauthorized
+        '404':
+          description: Not Found
+        '405':
+          description: Method not allowed
+        '415':
+          description: Unsupported Media Type
+        '422': 
+          description: Unprocessable Entity
+        '429':
+          description: Too Many Requests
+        '500':
+          description: Internal Server Error
+        '503':
+          description: Service Unavailable
+        '504':
+          description: Gateway Timeout
+
+  /adHoc/finalResponse/v0:
+    post:
+      tags: [Antwort AdHoc Steuerungshandlung]
+      summary: AdHoc-07 -> Finale Antwort
+      description: >
+       Anpassung und Erweiterung der finalen Rückmeldung. Unter anderem wurden zusätzliche ResponseCodes eingeführt, um eine möglichst präzise Rückmeldung an den auslösenden Akteur zu übermitteln.
+
+       Die finale Antwort wird unmittelbar nach erfolgreicher Konfiguration der Steuerungsanweisung versendet, d.h. sobald die Steuerungseinrichtung den Befehl erfolgreich entgegengenommen hat.
+
+
+       **Hinweis:** Ob die steuerbare Einrichtung auf Kundenseite den Steuerbefehl zum Ausführungszeitpunkt verarbeiten kann und erfolgreich umsetzt, ist mit dieser Antwort nicht sichergestellt.
+      operationId: postFinalResponse
+      parameters:
+        - $ref: '#/components/parameters/transactionId'
+        - $ref: '#/components/parameters/creationDateTime'
+        - $ref: '#/components/parameters/initialTransactionId'
+        - $ref: '#/components/parameters/referenceId'
+       # - $ref: '#/components/parameters/controlActor'      
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FinalResponse'
+      responses:
+        '202':
+          description: accepted
+        '400':
+          description: Bad Request
+        '401':
+          description: Unauthorized
+        '404':
+          description: Not Found
+        '405':
+          description: Method not allowed
+        '415':
+          description: Unsupported Media Type
+        '422': 
+          description: Unprocessable Entity
+        '429':
+          description: Too Many Requests
+        '500':
+          description: Internal Server Error
+        '503':
+          description: Service Unavailable
+        '504':
+          description: Gateway Timeout
+
+  /adHoc/information/v0:
+    post:
+      tags: [Mitteilung AdHoc Steuerungshandlung an Berechtigte]
+      summary: AdHoc-08 -> Information über AdHoc Steuerungshandlungen
+      description: >
+       Alle erfolgreich verarbeiteten Steuerungshandlungen werden unmittelbar nach der positiven finalen Antwort auch an alle berechtigten Marktpartner übermittelt, sodass eine Transparenz über sämtliche Steuerungsanweisungen besteht. Dabei werden nur die angefragten Steuerungshandlungen transparent gemacht. Die daraus abgeleiteten Residualprofile können über eine separate Status API abgefragt werden, sofern seitens des Absenders daran Bedarf besteht.
+
+
+       **Besonderheit:** Zusätzlich werden aktivie Softstartsequenzen übermittelt, sobald diese nach Wiederherstellung der Kommunikation vom MSB erkannt werden. Dadurch kann der VNB die laufende Softstartsequenz bei Bedarf beenden.
+      operationId: postInformation
+      parameters:
+        - $ref: '#/components/parameters/transactionId'
+        - $ref: '#/components/parameters/creationDateTime'
+        - $ref: '#/components/parameters/initialTransactionId'
+       # - $ref: '#/components/parameters/controlActor'      
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InformationRequest'
+      responses:
+        '202':
+          description: accepted
+        '400':
+          description: Bad Request
+        '401':
+          description: Unauthorized
+        '404':
+          description: Not Found
+        '405':
+          description: Method not allowed
+        '415':
+          description: Unsupported Media Type
+        '422': 
+          description: Unprocessable Entity
+        '429':
+          description: Too Many Requests
+        '500':
+          description: Internal Server Error
+        '503':
+          description: Service Unavailable
+        '504':
+          description: Gateway Timeout
+
+components:
+  responses:
+    Accepted: {description: Die Anfrage wurde technisch erfolgreich verarbeitet}
+    BadRequest: {description: Die Anfrage ist ungültig}
+    Unauthorized: {description: Die Anfrage ist nicht autorisiert}
+    NotFound: {description: Ressource nicht gefunden}
+    MethodNotAllowed: {description: Methode nicht erlaubt}
+    InternalError: {description: Interner Fehler}
+  parameters:
+
+    transactionId:
+      name: transactionId
+      in: header
+      description: Externe Transaktions-Id zur eindeutigen Identifikation des Aufrufs des sendenden Marktpartners.
+      required: true
+      schema:
+        type: string
+        format: uuid
+        example: de14872e-71e7-407f-916f-da8dbde05176
+ 
+    referenceId:
+      name: referenceId
+      in: header
+      description: Externe Vorgangsreferenz zur eindeutigen Identifikation des ursprünglichen Befehls (transactionId aus vorgelagerter Request "Anweisung AdHoc Steuerungshandlung").
+      required: true
+      schema:
+        type: string
+        format: uuid
+        example: de14872e-71e7-407f-916f-da8dbde05177
+
+    creationDateTime:
+      name: creationDateTime
+      in: header
+      description: Zeitpunkt an dem der Aufruf erstellt wurde
+      required: true
+      schema:
+        type: string
+        format: date-time
+        example: 2026-07-07T06:58:27.384Z
+
+    initialTransactionId:
+      name: initialTransactionId
+      in: header
+      description: Zur Angabe des Idempotenzschlüssels im Falle eines Retry.
+      required: false
+      schema:
+        type: string
+        format: uuid
+
+   # controlActor:
+  #  name: controlActor
+  #    in: header
+   #   required: true
+    #  schema:
+     #   type: string
+      #  pattern: '^\d{13}$'
+       # example: 9900496000005
+
+  schemas:
+    PowerLimitPeriod:
+      type: object
+      properties:
+        activePowerValue:
+          type: number
+          format: double
+          example: 24.123
+
+        executionTimeFrom:
+          type: string
+          format: date-time
+          example: "2023-08-01T12:30:00Z"
+
+        executionTimeUntil:
+          type: string
+          format: date-time
+          example: "2023-08-01T12:45:00Z"
+
+      required:
+        - activePowerValue
+        - executionTimeFrom
+        - executionTimeUntil
+    AdHocReason:
+      type: string
+      description: >
+        Der AdHocReason dient der Transparenz über den Anlass einer Ad-hoc-Steuerung.
+        Die Angabe kann für Dokumentations-, Nachweis- und Veröffentlichungspflichten
+        verwendet werden. Neben gesetzlichen oder regulatorischen Gründen (z. B. nach
+        §14a EnWG) können auch vertragliche Vereinbarungen mit Marktteilnehmern die
+        Grundlage einer Steuerung sein. Der Wert "Test" ist ausschließlich für
+        Testzwecke und Teststeuerungen vorgesehen.
+      enum:
+        - LEGAL_REGULATORY
+        - CONTRACT
+        - TEST
+      example: LEGAL_REGULATORY
+
+    AdHocPrioItem:
+      allOf:
+        - $ref: '#/components/schemas/LocationReference'
+        - type: object
+          properties:
+            adHocReason:
+              $ref: '#/components/schemas/AdHocReason'
+            maximumConsumptionPower:
+              type: array
+              minItems: 1
+              items:
+                $ref: '#/components/schemas/PowerLimitPeriod'
+
+            maximumProductionPower:
+              type: array
+              minItems: 1
+              items:
+                $ref: '#/components/schemas/PowerLimitPeriod'
+
+          anyOf:
+            - required:
+                - maximumConsumptionPower
+            - required:
+                - maximumProductionPower
+
+    AdHocPrioRequest:
+      $ref: '#/components/schemas/AdHocPrioItem'
+
+    LocationReference:
+      type: object
+      required:
+        - locationId
+      properties:
+        locationId:
+          type: string
+          description: Die ID wird durch den BDEW festgelegt. In der vorliegenden Spezifikation wird angenommen, dasss zukünftig ausschließlich über die SR-ID gesteuert wird.
+          pattern: '^C[A-Z0-9]{9}[0-9]$'
+          example: C1234848431
+
+
+
+
+    PowerInterval:
+      type: object
+      
+      required:
+        - activePowerValue
+      properties:
+        activePowerValue:
+          description: Maximale Wirkleistung in kW
+          type: number
+          format: double
+          minimum: 0
+          example: 4.200
+
+    ExecutionPowerInterval:
+      allOf:
+        - $ref: '#/components/schemas/PowerInterval'
+        - type: object
+          required:
+            - executionTimeFrom
+            - executionTimeUntil
+          properties:
+            executionTimeFrom:
+              type: string
+              format: date-time
+            executionTimeUntil:
+              type: string
+              format: date-time
+    
+    ExecutionInterval:
+      allOf:
+        - type: object
+          required:
+            - executionFrom
+            - executionUntil
+          properties:
+            executionFrom:
+              type: string
+              format: date-time
+            executionUntil:
+              type: string
+              format: date-time
+
+    DurationPowerInterval:
+      allOf:
+        - $ref: '#/components/schemas/PowerInterval'
+        - type: object
+          required:
+            - duration
+          properties:
+            duration:
+              description: Dauer in Sekunden
+              type: integer
+              example: 900
+
+    PowerIntervalHHMM:
+      allOf:
+        - $ref: '#/components/schemas/PowerInterval'
+        - type: object
+          required:
+            - executionTimeFrom
+            - executionTimeUntil
+          properties:
+            executionTimeFrom:
+              type: string
+              pattern: '^([01]\d|2[0-3]):[0-5]\d:[0-5]\dZ$'
+
+              example: "15:30:00Z"
+            executionTimeUntil:
+              type: string
+              pattern: '^([01]\d|2[0-3]):[0-5]\d:[0-5]\dZ$'
+
+              example: "18:15:00Z"
+
+
+    communicationFailureItem:
+      allOf:
+        - $ref: '#/components/schemas/LocationReference'
+        - type: object
+          required:
+            - communicationFailureValuesConsumption
+            - communicationFailureValuesProduction
+          properties:
+            communicationFailureValuesConsumption:
+              type: array
+              maxItems: 1
+              items:
+                $ref: '#/components/schemas/DurationPowerInterval'
+
+            communicationFailureValuesProduction:
+              type: array
+              maxItems: 1
+              items:
+                $ref: '#/components/schemas/DurationPowerInterval'
+
+
+
+    communicationFailure:
+        $ref: '#/components/schemas/communicationFailureItem'
+
+    SoftstartRequest:
+        allOf:
+          - $ref: '#/components/schemas/LocationReference'   
+          - type: object
+            properties:
+              softstartValuesMaxProduction:
+                type: array
+                items:
+                  $ref: '#/components/schemas/DurationPowerInterval'
+                example:
+                  - activePowerValue: 0
+                    duration: 900
+                  - activePowerValue: 4.2
+                    duration: 3600
+              softstartValuesMaxConsumption:
+                type: array
+                items:
+                  $ref: '#/components/schemas/DurationPowerInterval'
+                example:
+                  - activePowerValue: 2
+                    duration: 900
+                  - activePowerValue: 4.2
+                    duration: 3600
+
+    FailsafeRequest:
+        allOf:
+          - $ref: '#/components/schemas/LocationReference'  
+          - type: object
+            properties:
+              failsafeValueProduction:
+                $ref: '#/components/schemas/DurationPowerInterval'
+              failsafeValueConsumption:
+                $ref: '#/components/schemas/DurationPowerInterval'
+
+    InitialZustandRequest:
+      allOf:
+          - $ref: '#/components/schemas/LocationReference'  
+          - type: object
+            properties:
+        
+              adHocStopTime:
+                type: string
+                format: date-time
+              stopProfile:
+                type: string
+                example: "AdHoc-01"
+                enum:
+                  - AdHoc-01
+                  - AdHoc-02
+                  - AdHoc-03
+
+
+    PreliminaryResponse:
+      allOf:
+          - $ref: '#/components/schemas/LocationReference'  
+          - type: object
+            required:
+              - preliminaryState
+              - preliminaryResponseCode
+            properties:
+              preliminaryState:
+                type: string
+                enum: [possible, unable]
+                example: "unable"
+              preliminaryResponseCode:
+                type: string
+                enum: [succeeded, communicationFailure, overload, maintanance, missing contract, invalid message, unable]
+                description: >
+                  succeeded = erfolgreiche Verarbeitung; 
+                  communicationFailure = temporäre Störung in der Gerätekommunikation; 
+                  localFailure = Gerät(e) Störung - wird durch Außendienst behoben;
+                  customerInteractionRequired = Mitwirkung durch den Betreiber notwendig (bspw. SHIP Pairing);
+                  overload = Überlastung der Kommunikationsstrecke;
+                  missing contract = Keine gültige Berechtigung;
+                  invalid message = Nachricht enthält fachliche Fehler;
+                  unable = Sonstiger Fehler, siehe weitere Fehlerbeschreibung.
+                example: "customerInteractionRequired"
+              preliminaryReason:
+                type: string
+                example: "Fehlendes Pairing zwischen der Steuerungseinrichtung und der steuerbaren Einrichtung des Betreibers. Eine Kundeninteraktion ist notwendig"
+
+
+    FinalResponse:
+      allOf:
+          - $ref: '#/components/schemas/LocationReference'  
+          - type: object
+            required:
+              - adHocState
+              - adHocReason
+            example:
+                locationId: C1234848431
+                adHocState: possible
+                adHocResponseCode: succeeded 
+                adHocReason: AdHoc-Residualprofil erfolgreich in der Steuerungseinrichtung aktiviet.
+            properties:
+              adHocState:
+                type: string
+                enum: [possible, unable]
+              adHocResponseCode:
+                type: string
+                enum: [succeeded, communicationFailure, overload, maintanance, missing contract, invalid message, unable]
+                description: >
+                  succeeded = erfolgreiche Verarbeitung; 
+                  communicationFailure = temporäre Störung in der Gerätekommunikation; 
+                  localFailure = Gerät(e) Störung - wird durch Außendienst behoben;
+                  customerInteractionRequired = Mitwirkung durch den Betreiber notwendig (bspw. SHIP Pairing);
+                  overload = Überlastung der Kommunikationsstrecke;
+                  missing contract = Keine gültige Berechtigung;
+                  invalid message = Nachricht enthält fachliche Fehler;
+                  unable = Sonstiger Fehler, siehe weitere Fehlerbeschreibung.
+              adHocReason:
+                type: string
+                description: Freitext zur weiteren Fehlerbeschreibung
+
+    InformationRequest:
+      allOf:
+          #- $ref: '#/components/schemas/LocationReference'  
+          - type: object     
+            required:
+              - partnerId
+            properties:
+              partnerId:
+                type: string
+                example: 9900496000005
+            # adHocEndDate:
+            #   type: string
+            #   format: date-time
+              adHocPrioValues:
+                type: array
+                items:
+                  $ref: '#/components/schemas/AdHocPrioItem'
+
+
+              
+              adHocSoftstart:
+                type: array
+                items:
+                  allOf:
+                    - type: object
+                      properties:
+                        softstartActive:
+                          type: boolean
+                          description: Wenn eine aktive SoftstartSequenz erkannt wird, wird der Wert auf "True" gesetzt; Andernfalls wird standardmäßig "false" gesendet
+                      required:
+                        - softstartActive
+                    - $ref: '#/components/schemas/SoftstartRequest'
+
+              adHocFailsafe:
+                type: array
+                items:
+                  $ref: '#/components/schemas/FailsafeRequest'
+              initialZustand:
+                type: array
+                items:
+                  $ref: '#/components/schemas/InitialZustandRequest'
