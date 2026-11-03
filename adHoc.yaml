@@ -2,7 +2,7 @@ openapi: 3.0.3
 
 info:
   title: WARAN - Impuls zur Anpassung der Ad-Hoc-Steuerungs-API
-  version: 0.9.4
+  version: 0.9.5
   description: >
     Aufbauend auf dem bereits existierenden API-Webdienst zur prozessualen Abwicklung von Steuerungshandlungen (https://edi-energy.github.io/api-electricity/aktuell-gueltig/#/), werden im vorliegenden Abschnitt Erweiterungen vorgeschlagen, die es den Marktakteuren ermöglichen das volle Potential der Ad-hoc Steuerung zu nutzen. Der Vorschlag orientiert sich an der bisherigen, gültigen Version, ist aber nicht kompatibel da neue Dienste und Strukturen bzw. Bezeichnungen verwendet werden. Es handelt sich somit um einen fachlichen Vorschlag für ein neues Major Release. 
     
@@ -39,7 +39,7 @@ paths:
       tags: [Anweisung AdHoc Steuerungshandlung]
       summary: AdHoc-01 -> Priorisierte Ad-hoc-Steuerung
       description: >
-        Aufbauend auf dem bestehenden API-Webdienst zur Steuerung, werden inhaltliche Anpassungen bzw. Erweiterungen vorgeschlagen. Zu den Anpassungen zählen bspw. die Berücksichtigung der Energierichtung. Die Werte werden je Energierichtung in das jeweilige Ad-hoc Residualprofil übernommen und mit hoher Priorität umgesetzt. Die Ad-hoc Residualprofile (LPC-RP / LPP-RP) können im Backend des MSB gebildet und an die Steuerungseinrichtung weitergereicht werden. Sie entsprechen dabei den Steuerungsanwendungsfällen 1 und 2 gemäß Implementierungshinweis des BSI (SAF1 / SAF2).
+        Abweichend zum bisherigen AdHoc Steuerbefehl, kann hier die Energierichtung angegeben werden und es können mehrere Anweisungen in einem Aufruf übermittelt werden.
         
 
         **Mögliche energiewirtschaftliche Szenarien:**
@@ -54,7 +54,7 @@ paths:
         **„Marktliche Steuerung“ durch bspw. Direktvermarkter ist grundsätzlich auch mit Ad-hoc Steuerungssignalen umsetzbar. Es gilt zu beachten, dass der technische Use Case (LPC/LPP) nicht für die marktliche Anwendung bestimmt ist. Missverständnisse bei der Umsetzung, aufgrund der Darstellung als Netzengpasssignal auf der Kundenseite sind zu erwarten. Für die marktliche Steuerung wird daher der Flexband bzw. Hüllkurven Anwendungsfall empfohlen.
 
         
-        **Einschränkung:** "excecutionTimeUntil" darf maximal 24h in der Zukunft liegen
+        **Einschränkung:** der frühste "excecutionTimeFrom" darf maximal 24h in der Zukunft liegen
         
       operationId: postAdHocPrio
       parameters:
@@ -476,13 +476,13 @@ components:
        # example: 9900496000005
 
   schemas:
-    PowerLimitPeriod:
+    PowerLimits:
       type: object
       properties:
         activePowerValue:
           type: number
           format: double
-          example: 24.123
+          example: 4.123
 
         executionTimeFrom:
           type: string
@@ -503,10 +503,7 @@ components:
       description: >
         Der AdHocReason dient der Transparenz über den Anlass einer Ad-hoc-Steuerung.
         Die Angabe kann für Dokumentations-, Nachweis- und Veröffentlichungspflichten
-        verwendet werden. Neben gesetzlichen oder regulatorischen Gründen (z. B. nach
-        §14a EnWG) können auch vertragliche Vereinbarungen mit Marktteilnehmern die
-        Grundlage einer Steuerung sein. Der Wert "Test" ist ausschließlich für
-        Testzwecke und Teststeuerungen vorgesehen.
+        verwendet werden. Die Angabe ist zunächst optional/freiwillig.
       enum:
         - LEGAL_REGULATORY
         - CONTRACT
@@ -520,23 +517,28 @@ components:
           properties:
             adHocReason:
               $ref: '#/components/schemas/AdHocReason'
-            maximumConsumptionPower:
-              type: array
-              minItems: 1
-              items:
-                $ref: '#/components/schemas/PowerLimitPeriod'
 
-            maximumProductionPower:
+            maximumPowerValueConsumption:
               type: array
               minItems: 1
               items:
-                $ref: '#/components/schemas/PowerLimitPeriod'
+                $ref: '#/components/schemas/PowerLimits'
+
+            maximumPowerValueProduction:
+              type: array
+              minItems: 1
+              description: Maximale Einspeiseleistung
+              items:
+                $ref: '#/components/schemas/PowerLimits'
 
           anyOf:
-            - required:
-                - maximumConsumptionPower
-            - required:
-                - maximumProductionPower
+            - type: object
+              required:
+                - maximumPowerValueConsumption
+
+            - type: object
+              required:
+                - maximumPowerValueProduction
 
     AdHocPrioRequest:
       $ref: '#/components/schemas/AdHocPrioItem'
@@ -735,38 +737,81 @@ components:
                 type: string
                 example: "Fehlendes Pairing zwischen der Steuerungseinrichtung und der steuerbaren Einrichtung des Betreibers. Eine Kundeninteraktion ist notwendig"
 
-
     FinalResponse:
       allOf:
-          - $ref: '#/components/schemas/LocationReference'  
-          - type: object
-            required:
-              - adHocState
-              - adHocReason
-            example:
-                locationId: C1234848431
-                adHocState: possible
-                adHocResponseCode: succeeded 
-                adHocReason: AdHoc-Residualprofil erfolgreich in der Steuerungseinrichtung aktiviet.
-            properties:
-              adHocState:
-                type: string
-                enum: [possible, unable]
-              adHocResponseCode:
-                type: string
-                enum: [succeeded, communicationFailure, overload, maintanance, missing contract, invalid message, unable]
-                description: >
-                  succeeded = erfolgreiche Verarbeitung; 
-                  communicationFailure = temporäre Störung in der Gerätekommunikation; 
-                  localFailure = Gerät(e) Störung - wird durch Außendienst behoben;
-                  customerInteractionRequired = Mitwirkung durch den Betreiber notwendig (bspw. SHIP Pairing);
-                  overload = Überlastung der Kommunikationsstrecke;
-                  missing contract = Keine gültige Berechtigung;
-                  invalid message = Nachricht enthält fachliche Fehler;
-                  unable = Sonstiger Fehler, siehe weitere Fehlerbeschreibung.
-              adHocReason:
-                type: string
-                description: Freitext zur weiteren Fehlerbeschreibung
+        - $ref: '#/components/schemas/LocationReference'
+
+        - type: object
+          required:
+            - adHocState
+            - adHocReason
+
+          example:
+            locationId: C1234848431
+            adHocState: possible
+            adHocResponseCode: succeeded
+            adHocReason: AdHoc-Residualprofil erfolgreich in der Steuerungseinrichtung aktiviert.
+            residualLimits:
+              adHocResidualMaxConsumption:
+
+                    - executionTimeFrom: "2026-01-01T00:00:00Z"
+                      executionTimeUntil: "2026-01-01T01:00:00Z"
+                      activePowerValue: 4500
+                    - executionTimeFrom: "2026-01-01T01:00:00Z"
+                      executionTimeUntil: "2026-01-01T02:00:00Z"
+                      activePowerValue: 5000
+              adHocResidualMaxProduction:
+                    - executionTimeFrom: "2026-01-01T00:00:00Z"
+                      executionTimeUntil: "2026-01-01T01:00:00Z"
+                      activePowerValue: 3000
+
+
+          properties:
+            adHocState:
+              type: string
+              enum:
+                - possible
+                - unable
+
+            adHocResponseCode:
+              type: string
+              enum:
+                - succeeded
+                - communicationFailure
+                - overload
+                - maintanance
+                - missing contract
+                - invalid message
+                - unable
+              description: >
+                succeeded = erfolgreiche Verarbeitung;
+                communicationFailure = temporäre Störung in der Gerätekommunikation;
+                localFailure = Gerät(e)-Störung, wird durch Außendienst behoben;
+                customerInteractionRequired = Mitwirkung durch den Betreiber notwendig (z. B. SHIP Pairing);
+                overload = Überlastung der Kommunikationsstrecke;
+                missing contract = Keine gültige Berechtigung;
+                invalid message = Nachricht enthält fachliche Fehler;
+                unable = Sonstiger Fehler, siehe weitere Fehlerbeschreibung.
+
+            adHocReason:
+              type: string
+              description: Freitext zur weiteren Fehlerbeschreibung
+
+            residualLimits:
+              type: object
+              properties:
+
+                adHocResidualMaxConsumption:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/PowerLimits'
+
+                adHocResidualMaxProduction:
+                  type: array
+                  description: Liste von Residualprofilen für die maximale Einspeisung.
+                  items:
+                    $ref: '#/components/schemas/PowerLimits'
+                          
 
     InformationRequest:
       allOf:
