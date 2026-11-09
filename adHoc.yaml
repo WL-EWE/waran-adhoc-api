@@ -1,4 +1,4 @@
-openapi: 3.0.3
+openapi: 3.2.0
 
 info:
   title: WARAN - Impuls zur Anpassung der Ad-Hoc-Steuerungs-API (FNN Variante)
@@ -732,41 +732,82 @@ components:
 
     PreliminaryResponse:
       allOf:
-          - $ref: '#/components/schemas/LocationReference'  
-          - type: object
-            required:
-              - preliminaryState
-              - preliminaryResponseCode
-            properties:
-              preliminaryState:
-                type: string
-                enum: [possible, unable]
-                example: "unable"
-              preliminaryResponseCode:
-                type: string
-                enum: [succeeded, communicationFailure, overload, maintanance, missing contract, invalid message, unable]
-                description: >
-                  succeeded = erfolgreiche Verarbeitung; 
-                  communicationFailure = temporäre Störung in der Gerätekommunikation; 
-                  localFailure = Gerät(e) Störung - wird durch Außendienst behoben;
-                  customerInteractionRequired = Mitwirkung durch den Betreiber notwendig (bspw. SHIP Pairing);
-                  overload = Überlastung der Kommunikationsstrecke;
-                  missing contract = Keine gültige Berechtigung;
-                  invalid message = Nachricht enthält fachliche Fehler;
-                  unable = Sonstiger Fehler, siehe weitere Fehlerbeschreibung.
-                example: "customerInteractionRequired"
-              preliminaryReason:
-                type: string
-                example: "Fehlendes Pairing zwischen der Steuerungseinrichtung und der steuerbaren Einrichtung des Betreibers. Eine Kundeninteraktion ist notwendig"
-
-    FinalResponse:
-      allOf:
         - $ref: '#/components/schemas/LocationReference'
 
         - type: object
           required:
+            - preliminaryState
+            - preliminaryResponseCode
+
+          properties:
+            preliminaryState:
+              type: string
+              enum:
+                - possible
+                - unable
+
+            preliminaryResponseCode:
+              type: string
+              enum:
+                - succeeded
+                - localFailure
+                - communicationFailure
+                - customerInteractionRequired
+                - overload
+                - maintenance
+                - missingContract
+                - notSupported
+                - invalidCommand
+                - unable
+              description: >
+                localFailure = Gerätestörung, wird durch Außendienst behoben;
+                customerInteractionRequired = Mitwirkung durch den Betreiber notwendig (z. B. SKI Pairing);
+                communicationFailure = Kommunikationsverbindung nicht verfügbar;
+                overload = Überlastung der Kommunikationsstrecke;
+                maintenance = Wartungsarbeiten, vorübergehend nicht umsetzbar;
+                missingContract = Keine gültige Berechtigung;
+                notSupported = Anwendungsfall an der Lokation nicht möglich;
+                invalidCommand = Nachricht enthält fachliche Fehler;
+                unable = Sonstiger Fehler
+
+            preliminaryReason:
+              type: string
+              example: "Erfolgreich validiert - Umsetzung möglich"
+
+          allOf:
+            - if:
+                properties:
+                  preliminaryState:
+                    const: possible
+              then:
+                properties:
+                  preliminaryResponseCode:
+                    enum:
+                      - succeeded
+
+              else:
+                required:
+                  - preliminaryReason
+
+                properties:
+                  preliminaryResponseCode:
+                    enum:
+                      - localFailure
+                      - communicationFailure
+                      - customerInteractionRequired
+                      - overload
+                      - maintenance
+                      - missingContract
+                      - notSupported
+                      - invalidCommand
+                      - unable
+    FinalResponse:
+      allOf:
+        - $ref: '#/components/schemas/LocationReference'
+        - type: object
+          required:
             - adHocState
-            - adHocReason
+            - adHocResponseCode
 
           example:
             locationId: C1234848431
@@ -775,18 +816,16 @@ components:
             adHocReason: AdHoc-Residualprofil erfolgreich in der Steuerungseinrichtung aktiviert.
             residualLimits:
               adHocResidualMaxConsumption:
-
-                    - executionTimeFrom: "2026-01-01T00:00:00Z"
-                      executionTimeUntil: "2026-01-01T01:00:00Z"
-                      activePowerValue: 4500
-                    - executionTimeFrom: "2026-01-01T01:00:00Z"
-                      executionTimeUntil: "2026-01-01T02:00:00Z"
-                      activePowerValue: 5000
+                - executionTimeFrom: "2026-01-01T00:00:00Z"
+                  executionTimeUntil: "2026-01-01T01:00:00Z"
+                  activePowerValue: 4500
+                - executionTimeFrom: "2026-01-01T01:00:00Z"
+                  executionTimeUntil: "2026-01-01T02:00:00Z"
+                  activePowerValue: 5000
               adHocResidualMaxProduction:
-                    - executionTimeFrom: "2026-01-01T00:00:00Z"
-                      executionTimeUntil: "2026-01-01T01:00:00Z"
-                      activePowerValue: 3000
-
+                - executionTimeFrom: "2026-01-01T00:00:00Z"
+                  executionTimeUntil: "2026-01-01T01:00:00Z"
+                  activePowerValue: 3000
 
           properties:
             adHocState:
@@ -799,30 +838,36 @@ components:
               type: string
               enum:
                 - succeeded
+                - localFailure
                 - communicationFailure
+                - customerInteractionRequired
                 - overload
-                - maintanance
-                - missing contract
-                - invalid message
+                - maintenance
+                - missingContract
+                - notSupported
+                - invalidCommand
                 - unable
               description: >
                 succeeded = erfolgreiche Verarbeitung;
+                localFailure = Gerätestörung, wird durch Außendienst behoben;
                 communicationFailure = temporäre Störung in der Gerätekommunikation;
-                localFailure = Gerät(e)-Störung, wird durch Außendienst behoben;
                 customerInteractionRequired = Mitwirkung durch den Betreiber notwendig (z. B. SHIP Pairing);
                 overload = Überlastung der Kommunikationsstrecke;
-                missing contract = Keine gültige Berechtigung;
-                invalid message = Nachricht enthält fachliche Fehler;
-                unable = Sonstiger Fehler, siehe weitere Fehlerbeschreibung.
+                maintenance = Wartungsarbeiten, vorübergehend nicht umsetzbar;
+                missingContract = Keine gültige Berechtigung;
+                notSupported = Anwendungsfall an der Lokation nicht möglich;
+                invalidCommand = Nachricht enthält fachliche Fehler;
+                unable = Sonstiger Fehler.
 
             adHocReason:
               type: string
-              description: Freitext zur weiteren Fehlerbeschreibung
+              description: Freitext zur Erläuterung des Ergebnisses
+              example: "Erfolgreich validiert und in der Steuerungseinrichtung aktiviert."
 
             residualLimits:
               type: object
+              description: Optional berechnete Residualleistungsgrenzen.
               properties:
-
                 adHocResidualMaxConsumption:
                   type: array
                   items:
@@ -833,7 +878,32 @@ components:
                   description: Liste von Residualprofilen für die maximale Einspeisung.
                   items:
                     $ref: '#/components/schemas/PowerLimits'
-                          
+
+          allOf:
+            - if:
+                properties:
+                  adHocState:
+                    const: possible
+              then:
+                properties:
+                  adHocResponseCode:
+                    enum:
+                      - succeeded
+              else:
+                required:
+                  - adHocReason
+                properties:
+                  adHocResponseCode:
+                    enum:
+                      - localFailure
+                      - communicationFailure
+                      - customerInteractionRequired
+                      - overload
+                      - maintenance
+                      - missingContract
+                      - notSupported
+                      - invalidCommand
+                      - unable            
 
     InformationRequest:
       allOf:
