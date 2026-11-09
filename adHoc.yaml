@@ -28,7 +28,7 @@ paths:
   /anweisung/adHoc/steuerbefehl/v0:
     post:
       tags: [Anweisung AdHoc Steuerungshandlung]
-      summary: AdHoc-01 -> Priorisierte Ad-hoc-Steuerung
+      summary: AdHoc-01 ->  Ad-hoc-Steuerung
       description: >
         Abweichend zum bisherigen AdHoc Steuerbefehl, können beide Energierichtung angegeben werden und es können mehrere Anweisungen in einem Aufruf übermittelt werden. Außerdem sind Start- (executionTimeFrom) und Enddatum (executionTimeUntil) beide verpflichtend.
         
@@ -640,11 +640,11 @@ components:
         - $ref: '#/components/schemas/LocationReference'
         - type: object
           properties:
-            maximumOfflineDuration:
+            connectionTimeout:
               type: integer
-              minimum: 1
-              description: Maximale Dauer eines Kommunikationsausfalls in Minuten, bevor die Communication-Failure-Werte aktiviert werden.
-              example: 30
+              minimum: 60
+              description: Maximale Dauer eines Kommunikationsausfalls in Sekunden, bevor die Communication-Failure-Werte aktiviert werden.
+              example: 120
 
             wanFailureValuesConsumption:
               type: array
