@@ -1,22 +1,13 @@
 openapi: 3.0.3
 
 info:
-  title: WARAN - Impuls zur Anpassung der Ad-Hoc-Steuerungs-API
-  version: 0.9.5
+  title: WARAN - Impuls zur Anpassung der Ad-Hoc-Steuerungs-API (FNN Variante)
+  version: 0.9.6
   description: >
     Aufbauend auf dem bereits existierenden API-Webdienst zur prozessualen Abwicklung von Steuerungshandlungen (https://edi-energy.github.io/api-electricity/aktuell-gueltig/#/), werden im vorliegenden Abschnitt Erweiterungen vorgeschlagen, die es den Marktakteuren ermöglichen das volle Potential der Ad-hoc Steuerung zu nutzen. Der Vorschlag orientiert sich an der bisherigen, gültigen Version, ist aber nicht kompatibel da neue Dienste und Strukturen bzw. Bezeichnungen verwendet werden. Es handelt sich somit um einen fachlichen Vorschlag für ein neues Major Release. 
     
 
     Zur eindeutigen fachlichen Zuordnung der Steuerungsdienste, soll zunächst präzisiert werden, dass die lokale Weitergabe der Ad-hoc Steuerungshandlungen verbrauchsseitig stets über den EEBUS UseCase LPC und einspeiseseitig stets über den EEBUS UseCase LPP erfolgt.* Neben dem kurativen Ad-hoc Eingriff des Netzbetreiber (bspw. nach §14a EnWG) ist es vorgesehen die Steuerungssignale auch im Kontext weiterer netzstabilisierender Maßnahmen zu verwenden. Dazu zählen u.a. Fallbackszenarien, um im Falle von Kommunikationsstörungen oder bei Spannungswiederkehr ein definiertes Verhalten der steuerbaren Anlagen zu gewährleisten. Damit die unterschiedlichen Szenarien konfliktfrei eingesetzt werden können, sind Definitionen und Prioritäten bei der Umsetzung zu berücksichtigen. Die Berücksichtigung der Prioritäten und die Weitergabe der Steuerungshandlungen an die Steuerungseinrichtung bzw. an die steuerbare Einrichtung orientiert sich dabei u.a. an dem VDE FNN Hinweis „Steuerungs-Administration“. Insbesondere das Konzept des Residualprofils wird aufgegriffen und als geeignete Möglichkeit identifiziert, die unterschiedlichen Signale im Backend des Messstellenbetreibers zu harmonisieren. Im aktuellen Abschnitt meint das Ad-hoc Residualprofil dabei die jeweiligen LPC und LPP Werte, die als auszuführendes Array an Werten auf die Steuerungseinrichtung übertragen werden. Die Werte können dabei einen zeitlichen Horizont von mehreren Stunden oder Tagen abdecken. Jeder neue Aufruf sorgt für eine Aktualisierung des Residualprofils.
-
-
-    Ingesamt ergeben sich die folgenden API Dienste die mit der entsprechenden Berechtigung beim MSB bestellt und genutzt werden können:
-      - AdHoc-01 "Priorisierte Ad-hoc Steuerungen" wird ins Residualprofil übernommen und überschreibt zyklische bzw. ältere AdHoc Steuerungshandlungen
-      - AdHoc-02 "Zyklische AdHoc Steuerung" wird ins Residualprofil übernommen und täglich wiederkehrend ausgeführt. Kann durch neuere AdHoc Anweisungen übersteuert werden. 
-      - AdHoc-03 "Softstart" Wird unabhängig vom Residualprofil aktiviert, sobald es einen unerwarteten Neustart der Steuerungseinrictung gibt (Spannungswiederkehr). Wird mit höchster Priorität ausgeführt und übersteuert somit das Ad-hoc Residualprofil.
-      - AdHoc-04 "Failsafe-Konfiguration" Konfiguration der Failsafe Werte gemäß EEBUS LPC / LPP Szenario 2
-      - AdHoc-05 "Löschen vorhandener Ad-hoc Steuerungen" setzt die Anweisungen des jeweiligen Absenders auf den ursprünglichen Zustand (i.d.R. unbegrenzt bzw. 100%) zurück. Optional kann das entsprechende Profil zum Zurücksetzen angegeben werden.
-
 
 
     *Fokus liegt auf der digitalen Schnittstelle. Insbesondere im Falle von Steuerungsdiensten ist zu erwarten, dass diese das Zielbild und den zukünftigen Standard abdeckt. Die fachliche Ausprägung der Prozesse und API-Dienste sollte daher stets mit Fokus auf die digitale Steuerung gemäß der VDE-AR-E-2829-6-1 erfolgen. Eine Abwärtskompatibilität zum Relais kann für die einfachen Steuersignale in der Regel gewährleistet werden, ist aber nicht Fokus der vorliegenden Spezifikation. 
@@ -39,7 +30,7 @@ paths:
       tags: [Anweisung AdHoc Steuerungshandlung]
       summary: AdHoc-01 -> Priorisierte Ad-hoc-Steuerung
       description: >
-        Abweichend zum bisherigen AdHoc Steuerbefehl, kann hier die Energierichtung angegeben werden und es können mehrere Anweisungen in einem Aufruf übermittelt werden.
+        Abweichend zum bisherigen AdHoc Steuerbefehl, können beide Energierichtung angegeben werden und es können mehrere Anweisungen in einem Aufruf übermittelt werden. Außerdem sind Start- (executionTimeFrom) und Enddatum (executionTimeUntil) beide verpflichtend.
         
 
         **Mögliche energiewirtschaftliche Szenarien:**
@@ -99,14 +90,26 @@ paths:
       tags: [Anweisung AdHoc Steuerungshandlung]
       summary: AdHoc-02 -> Softstartprofil
       description: >
-        Ein Softstart Ad-hoc Profil (LPC/LPP SSt) welches dediziert auf der Steuerungseinrichtung hinterlegt wird und nur bei einer lokalen Spannungsunterbrechung aktiviert wird. Wird mit höchster Priorität ausgeführt und übersteuert somit das Ad-hoc Residualprofil (LPC RP / LPP RP). Sofern die Verbindung zum Backend wieder hergestellt ist, wird ein aktiviertes Softstartprofil über den API Dienst "AdHoc-08" transparent gemacht und kann über den API Dienst "AdHoc-05" zurückgesetzt werden. Soll ein bereits hinterlegtes Softartprofil von der Steuerungseinrichtung entfernt werden, muss ein leeres Softstartprofil gesendet werden. 
-        Die Softstart Profile (LPC SSt / LPP SSt) entsprechen den Steuerungsanwendungsfällen 5 und 6 gemäß Implementierungshinweis des BSI (SAF5 / SAF6). 
+        Ein Softstart Ad-hoc Profil (LPC/LPP SSt) welches dediziert auf der Steuerungseinrichtung hinterlegt wird und nur bei einer lokalen Spannungsunterbrechung aktiviert wird. Wird mit höchster Priorität ausgeführt und übersteuert somit das Ad-hoc Residualprofil (LPC RP / LPP RP). Sofern die Verbindung zum Backend wieder hergestellt ist, wird ein aktiviertes Softstartprofil über den API Dienst "AdHoc-08" transparent gemacht und kann über den API Dienst "AdHoc-05" zurückgesetzt werden. Soll ein bereits hinterlegtes Softartprofil von der Steuerungseinrichtung entfernt werden, muss ein leeres Softstartprofil gesendet werden. **(TBD!)** 
+        Die Softstart Profile entsprechen den Steuerungsanwendungsfällen 5 und 6 gemäß Implementierungshinweis des BSI (SAF5 / SAF6). 
 
 
         **Mögliche energiewirtschaftliche Szenarien:**
           - VNB - Netzstabilität nach Spannungswiederkehr -> LPC/LPP SSt
 
         **Einschränkung:** Nur durch den VNB zulässig
+      
+      parameters:
+        - $ref: '#/components/parameters/transactionId'
+        - $ref: '#/components/parameters/creationDateTime'
+        - $ref: '#/components/parameters/initialTransactionId'
+       # - $ref: '#/components/parameters/controlActor'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SoftstartRequest'  
       responses:
         '202':
           description: accepted
@@ -487,12 +490,12 @@ components:
         executionTimeFrom:
           type: string
           format: date-time
-          example: "2023-08-01T12:30:00Z"
+          example: "2026-08-01T12:30:00Z"
 
         executionTimeUntil:
           type: string
           format: date-time
-          example: "2023-08-01T12:45:00Z"
+          example: "2026-08-01T14:45:00Z"
 
       required:
         - activePowerValue
@@ -508,23 +511,24 @@ components:
         - LEGAL_REGULATORY
         - CONTRACT
         - TEST
-      example: LEGAL_REGULATORY
+      example: TEST
 
     AdHocPrioItem:
+      minProperties: 3
       allOf:
         - $ref: '#/components/schemas/LocationReference'
         - type: object
+        
           properties:
-            adHocReason:
-              $ref: '#/components/schemas/AdHocReason'
 
-            maximumPowerValueConsumption:
+
+            maximumPowerValuesConsumption:
               type: array
               minItems: 1
               items:
                 $ref: '#/components/schemas/PowerLimits'
 
-            maximumPowerValueProduction:
+            maximumPowerValuesProduction:
               type: array
               minItems: 1
               description: Maximale Einspeiseleistung
@@ -534,11 +538,11 @@ components:
           anyOf:
             - type: object
               required:
-                - maximumPowerValueConsumption
+                - maximumPowerValuesConsumption
 
             - type: object
               required:
-                - maximumPowerValueProduction
+                - maximumPowerValuesProduction
 
     AdHocPrioRequest:
       $ref: '#/components/schemas/AdHocPrioItem'
@@ -635,21 +639,32 @@ components:
       allOf:
         - $ref: '#/components/schemas/LocationReference'
         - type: object
-          required:
-            - communicationFailureValuesConsumption
-            - communicationFailureValuesProduction
           properties:
-            communicationFailureValuesConsumption:
+            maximumOfflineDuration:
+              type: integer
+              minimum: 1
+              description: Maximale Dauer eines Kommunikationsausfalls in Minuten, bevor die Communication-Failure-Werte aktiviert werden.
+              example: 30
+
+            wanFailureValuesConsumption:
               type: array
+              minItems: 1
               maxItems: 1
               items:
                 $ref: '#/components/schemas/DurationPowerInterval'
 
-            communicationFailureValuesProduction:
+            wanFailureValuesProduction:
               type: array
+              minItems: 1
               maxItems: 1
               items:
                 $ref: '#/components/schemas/DurationPowerInterval'
+
+          anyOf:
+            - required:
+                - communicationFailureValuesConsumption
+            - required:
+                - communicationFailureValuesProduction
 
 
 
@@ -657,38 +672,45 @@ components:
         $ref: '#/components/schemas/communicationFailureItem'
 
     SoftstartRequest:
-        allOf:
-          - $ref: '#/components/schemas/LocationReference'   
-          - type: object
-            properties:
-              softstartValuesMaxProduction:
-                type: array
-                items:
-                  $ref: '#/components/schemas/DurationPowerInterval'
-                example:
-                  - activePowerValue: 0
-                    duration: 900
-                  - activePowerValue: 4.2
-                    duration: 3600
-              softstartValuesMaxConsumption:
-                type: array
-                items:
-                  $ref: '#/components/schemas/DurationPowerInterval'
-                example:
-                  - activePowerValue: 2
-                    duration: 900
-                  - activePowerValue: 4.2
-                    duration: 3600
+      allOf:
+        - $ref: '#/components/schemas/LocationReference'
+        - type: object
+          properties:
+            softstartValuesMaxProduction:
+              type: array
+              minItems: 1
+              items:
+                $ref: '#/components/schemas/DurationPowerInterval'
+
+            softstartValuesMaxConsumption:
+              type: array
+              minItems: 1
+              items:
+                $ref: '#/components/schemas/DurationPowerInterval'
+
+          anyOf:
+            - required:
+                - softstartValuesMaxProduction
+            - required:
+                - softstartValuesMaxConsumption
+
 
     FailsafeRequest:
-        allOf:
-          - $ref: '#/components/schemas/LocationReference'  
-          - type: object
-            properties:
-              failsafeValueProduction:
-                $ref: '#/components/schemas/DurationPowerInterval'
-              failsafeValueConsumption:
-                $ref: '#/components/schemas/DurationPowerInterval'
+      allOf:
+        - $ref: '#/components/schemas/LocationReference'
+        - type: object
+          properties:
+            failsafeValueProduction:
+              $ref: '#/components/schemas/DurationPowerInterval'
+
+            failsafeValueConsumption:
+              $ref: '#/components/schemas/DurationPowerInterval'
+
+          anyOf:
+            - required:
+                - failsafeValueProduction
+            - required:
+                - failsafeValueConsumption
 
     InitialZustandRequest:
       allOf:
