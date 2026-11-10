@@ -514,14 +514,10 @@ components:
       example: TEST
 
     AdHocPrioItem:
-      minProperties: 3
       allOf:
         - $ref: '#/components/schemas/LocationReference'
-        - type: object
-        
+        - type: object     
           properties:
-
-
             maximumPowerValuesConsumption:
               type: array
               minItems: 1
