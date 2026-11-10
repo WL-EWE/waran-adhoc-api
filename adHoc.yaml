@@ -47,7 +47,7 @@ paths:
         
         **Einschränkung:** der frühste "excecutionTimeFrom" darf maximal 24h in der Zukunft liegen
         
-      operationId: postAdHocPrio
+      operationId: postAdHoc
       parameters:
         - $ref: '#/components/parameters/transactionId'
         - $ref: '#/components/parameters/creationDateTime'
@@ -58,7 +58,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/AdHocPrioRequest'
+              $ref: '#/components/schemas/AdHocRequest'
       responses:
         '202':
           description: accepted
@@ -513,7 +513,7 @@ components:
         - TEST
       example: TEST
 
-    AdHocPrioItem:
+    AdHocItem:
       allOf:
         - $ref: '#/components/schemas/LocationReference'
         - type: object     
@@ -540,8 +540,8 @@ components:
               required:
                 - maximumPowerValuesProduction
 
-    AdHocPrioRequest:
-      $ref: '#/components/schemas/AdHocPrioItem'
+    AdHocRequest:
+      $ref: '#/components/schemas/AdHocItem'
 
     LocationReference:
       type: object
@@ -914,10 +914,10 @@ components:
             # adHocEndDate:
             #   type: string
             #   format: date-time
-              adHocPrioValues:
+              adHocValues:
                 type: array
                 items:
-                  $ref: '#/components/schemas/AdHocPrioItem'
+                  $ref: '#/components/schemas/AdHocItem'
 
 
               
