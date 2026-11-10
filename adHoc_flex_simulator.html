@@ -1,1 +1,2121 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Energy Flex Simulator (Ad-hoc-Steuerung)</title>
+  <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+  <style>
+    :root {
+      --bg: #f7f9fc;
+      --card: #ffffff;
+      --border: #d8dfeb;
+      --text: #1e293b;
+      --muted: #5b6473;
+      --ok: #2e7d32;
+      --warn: #ef6c00;
+      --danger: #c62828;
+      --accent: #1565c0;
+    }
 
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      color: var(--text);
+      background: var(--bg);
+    }
+
+    .page {
+      padding: 14px;
+      display: grid;
+      gap: 12px;
+    }
+
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px;
+    }
+
+    .top-row {
+      display: grid;
+      grid-template-columns: 1.2fr 1fr auto;
+      gap: 8px;
+      align-items: end;
+    }
+
+    .main-row {
+      display: grid;
+      grid-template-columns: 360px 1fr 360px;
+      gap: 12px;
+      min-height: 520px;
+    }
+
+    /* Grid-Spalten dürfen schrumpfen, sonst lassen sich die Diagramme nicht sauber neu skalieren. */
+    .main-row > * {
+      min-width: 0;
+    }
+
+    /* Eingeklappte Seitenleiste: nur ein schmaler Streifen, die Diagramme bekommen die frei werdende Breite. */
+    .main-row.side-collapsed {
+      grid-template-columns: 360px 1fr 44px;
+    }
+
+    .side-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .side-head h2 {
+      margin: 0;
+    }
+
+    .side-toggle {
+      flex: 0 0 auto;
+      padding: 3px 9px;
+      font-size: 15px;
+      line-height: 1;
+    }
+
+    .side-collapsed .side-panel {
+      padding: 8px 4px;
+    }
+
+    .side-collapsed .side-body {
+      display: none;
+    }
+
+    .side-collapsed .side-head {
+      flex-direction: column;
+      justify-content: flex-start;
+    }
+
+    .side-collapsed .side-head h2 {
+      writing-mode: vertical-rl;
+      white-space: nowrap;
+      font-size: 13px;
+      cursor: pointer;
+      color: var(--muted);
+    }
+
+    .bottom-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+
+    h1, h2, h3 {
+      margin: 0 0 8px 0;
+      font-size: 16px;
+    }
+
+    label {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 13px;
+    }
+
+    .stack {
+      display: grid;
+      gap: 10px;
+      align-content: start;
+    }
+
+    .stack-tight {
+      display: grid;
+      gap: 6px;
+    }
+
+    .row {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    .row > * {
+      flex: 1 1 auto;
+      min-width: 110px;
+    }
+
+    /* Zeitfelder-Paar: teilt sich die Breite und bricht bei zu wenig Platz um, statt aus dem Container zu ragen. */
+    .range-pair {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      align-items: center;
+      min-width: 0;
+    }
+
+    .range-pair label {
+      flex: 1 1 130px;
+      min-width: 0;
+      white-space: nowrap;
+    }
+
+    .range-pair input {
+      flex: 1 1 auto;
+      width: 100%;
+      min-width: 0;
+      box-sizing: border-box;
+    }
+
+    .dist-block {
+      display: grid;
+      min-width: 0;
+      gap: 5px;
+      padding: 6px;
+      border: 1px solid #e6ecf7;
+      border-radius: 6px;
+      background: #fbfcff;
+    }
+
+    input, select, button, textarea {
+      border: 1px solid #b9c3d6;
+      border-radius: 6px;
+      padding: 5px 7px;
+      font-size: 13px;
+      background: #fff;
+      color: var(--text);
+    }
+
+    button {
+      cursor: pointer;
+      background: #eef4ff;
+    }
+
+    button.primary {
+      background: #dbe9ff;
+      border-color: var(--accent);
+    }
+
+    .subtle {
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .commands {
+      max-height: 340px;
+      overflow: auto;
+      border: 1px solid #e6ecf7;
+      border-radius: 6px;
+      padding: 6px;
+      background: #fbfcff;
+    }
+
+    .cmd {
+      border: 1px solid #dfe7f5;
+      border-radius: 6px;
+      padding: 6px;
+      margin-bottom: 6px;
+      background: #fff;
+      display: grid;
+      gap: 6px;
+    }
+
+    .cmd-header {
+      display: flex;
+      justify-content: space-between;
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .chart-wrap {
+      display: grid;
+      grid-template-rows: auto auto auto auto;
+      gap: 8px;
+      align-content: start;
+    }
+
+    #chartMsb {
+      height: 280px;
+      width: 100%;
+    }
+
+    #chartLocal {
+      height: 260px;
+      width: 100%;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+    }
+
+    th, td {
+      border: 1px solid #e7edf9;
+      padding: 5px;
+      text-align: left;
+      vertical-align: top;
+    }
+
+    .timeline {
+      max-height: 260px;
+      overflow: auto;
+      border: 1px solid #e7edf9;
+      border-radius: 6px;
+      background: #fff;
+    }
+
+    .event {
+      display: flex;
+      gap: 6px;
+      align-items: flex-start;
+      padding: 6px 8px;
+      border-bottom: 1px solid #eef2fb;
+      font-size: 13px;
+    }
+
+    .event:last-child {
+      border-bottom: none;
+    }
+
+    .event-wan { background: #ffebee; }
+    .event-local { background: #f3e5f5; }
+    .event-power { background: #eceff1; }
+    .event-softstart { background: #e3f2fd; }
+    .event-failsafe { background: #ffebee; }
+    .event-adhocPrio { background: #fff8e1; }
+    .event-info { background: #f5f7fb; }
+
+    .warning-box {
+      border: 1px solid #ffc107;
+      background: #fff8e1;
+      border-radius: 6px;
+      padding: 6px;
+      font-size: 12px;
+    }
+
+    .test-pass { background: #e8f5e9; }
+    .test-fail { background: #ffebee; }
+
+    .cmd-invalid { border-color: var(--warn); }
+
+    .cmd-issue {
+      font-size: 12px;
+      color: var(--danger);
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <div class="card top-row">
+      <div class="stack-tight">
+        <h1>WARAN Energy Flex Simulator – Ad-hoc-Steuerung</h1>
+      </div>
+
+      <div class="stack-tight">
+        <label>Beispielkonfigurationen
+          <select id="exampleConfigSelect"></select>
+        </label>
+        <button id="loadExampleBtn">Beispielkonfiguration laden</button>
+      </div>
+
+      <div class="stack-tight">
+        <button id="shareBtn" class="primary">Konfiguration teilen</button>
+        <button id="exportJsonBtn">Beispiele als JSON speichern</button>
+        <button id="importJsonBtn">Beispiele aus JSON laden</button>
+        <input id="importJsonInput" type="file" accept=".json,application/json" style="display:none;" />
+        <button id="resetBtn">Zurücksetzen</button>
+      </div>
+    </div>
+
+    <div id="mainRow" class="main-row">
+      <div class="card stack">
+        <h2>Simulationskonfiguration</h2>
+
+        <div class="stack-tight">
+          <h3>Anlagenmaximum</h3>
+          <div class="row">
+            <label>Max. Consumption [kW] <input id="plantMaxLpc" type="number" step="0.1" min="0" value="11" /></label>
+            <label>Max. Production [kW] <input id="plantMaxLpp" type="number" step="0.1" min="0" value="0" /></label>
+          </div>
+        </div>
+
+        <div class="stack-tight">
+          <h3>Steuerbefehle</h3>
+          <div class="subtle">
+            adhocPrio: Je Marktpartner und Art (Consumption/Production) gilt der neuere Befehl, zwischen
+            verschiedenen Marktpartnern der niedrigste Wert.
+            Failsafe greift nur bei einer lokalen Kommunikationsstörung (für die konfigurierte Dauer).
+            Softstart greift nach Spannungswiederkehr mit höchster Priorität und übersteuert adhocPrio.
+          </div>
+          <div class="row">
+            <button id="addCommandBtn">+ Befehl hinzufügen</button>
+          </div>
+          <div id="commandsContainer" class="commands"></div>
+        </div>
+
+        <div class="stack-tight">
+          <h3>Störungen</h3>
+          <div class="subtle">Gleiche Von- und Bis-Zeit bedeutet: kein Störungsfenster.</div>
+
+          <div class="dist-block">
+            <label><input id="wanEnabled" type="checkbox" /> WAN-Kommunikationsstörung</label>
+            <div class="subtle">
+              Wirkt nur auf die Übertragung MSB → iMSys und aktiviert keine Profile. Befehle, die während der Störung
+              eingehen, können nicht übertragen werden und werden abgelehnt. Bereits zugestellte Befehle wirken weiter.
+            </div>
+            <div class="range-pair">
+              <label>Von <input id="wanFrom" type="time" step="60" value="16:00" /></label>
+              <label>Bis <input id="wanTo" type="time" step="60" value="18:00" /></label>
+            </div>
+          </div>
+
+          <div class="dist-block">
+            <label><input id="localEnabled" type="checkbox" /> Lokale Kommunikationsstörung</label>
+            <div class="subtle">
+              Wird von der steuerbaren Anlage erkannt: Für die konfigurierte Failsafe-Dauer gilt der Failsafe-Wert,
+              danach unlimitiert bis die Störung behoben ist. Danach greifen wieder die aktiven Steuerbefehle.
+            </div>
+            <div class="range-pair">
+              <label>Von <input id="localFrom" type="time" step="60" value="14:00" /></label>
+              <label>Bis <input id="localTo" type="time" step="60" value="16:00" /></label>
+            </div>
+          </div>
+
+          <div class="dist-block">
+            <label><input id="powerEnabled" type="checkbox" /> Spannungsausfall / Spannungswiederkehr</label>
+            <div class="subtle">
+              Während des Ausfalls ist die Leistung immer 0 kW. Ab Spannungswiederkehr laufen die Softstart-Stufen.
+            </div>
+            <div class="range-pair">
+              <label>Ausfall <input id="powerFrom" type="time" step="60" value="15:00" /></label>
+              <label>Wiederkehr <input id="powerTo" type="time" step="60" value="15:30" /></label>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <div class="card chart-wrap">
+        <div class="subtle">Zeitregler: In einer der beiden Grafiken klicken oder ziehen. Beide Regler laufen synchron.</div>
+        <div>
+          <h3>Marktpartner-Sicht: gültige Befehle je Marktpartner und daraus berechnete Grenze</h3>
+          <div id="chartMsb"></div>
+        </div>
+        <div>
+          <h3>Lokal-Sicht: tatsächlich zulässige Leistung (Spannungsausfall, Softstart, lokale Störung)</h3>
+          <div id="chartLocal"></div>
+        </div>
+        <div class="subtle">
+          Consumption wird positiv, Production negativ dargestellt; die gestrichelte graue Linie ist das Anlagenmaximum.
+          Oben: der jeweils wirksame Befehl je Marktpartner und Art, die dicke Linie ist der niedrigste Befehlswert.
+          Gepunktete Linien sind Befehle, die wegen der WAN-Störung (rot hinterlegt) abgelehnt wurden.
+          Unten: die am Ende zulässige Leistung. Hintergrund = Betriebsmodus: grün normal, orange adhocPrio,
+          rot Failsafe, lila lokale Störung unlimitiert, blau Softstart, grau Spannungsausfall.
+        </div>
+      </div>
+
+      <div id="sidePanel" class="card stack side-panel">
+        <div class="side-head">
+          <h2 id="sideTitle">Zustände &amp; Kommunikation</h2>
+          <button id="toggleSideBtn" class="side-toggle" type="button" aria-expanded="true" title="Seitenleiste einklappen">»</button>
+        </div>
+        <div class="side-body stack">
+          <div id="whyCard" class="warning-box"></div>
+          <table id="networkTable"></table>
+          <table id="stateTable"></table>
+          <h3>Automatische Validierungstests</h3>
+          <div id="testResults" class="timeline"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="bottom-row">
+      <div class="card stack">
+        <h2>Timeline / Ereignisse</h2>
+        <div id="eventTimeline" class="timeline"></div>
+      </div>
+      <div class="card stack">
+        <h2>Zeitliche Simulationstabelle</h2>
+        <div style="max-height:260px; overflow:auto;">
+          <table id="timelineTable"></table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Standard-Stufen für neue Softstart-Befehle: "Dauer in Minuten = Grenze in kW".
+    const SOFTSTART_DEFAULT_STEPS = { LPC: "15=0, 120=4, 120=7", LPP: "15=0, 60=1, 180=4" };
+    const FAILSAFE_DEFAULT_DURATION = 60;
+    const SIDE_STORAGE_KEY = "energyFlexSim.sideCollapsed";
+
+    // Befehlsarten und Marktpartner. Failsafe und Softstart sind lokale Konfigurationen ohne Marktpartner und ohne Zeitfenster.
+    const COMMAND_TYPES = ["adhocPrio", "failsafe", "softstart"];
+    const PARTNERS = ["LF1", "VNB"];
+    const DIRECTIONS = ["LPC", "LPP"];
+    const DIR_LABEL = { LPC: "Consumption", LPP: "Production" };
+    const PARTNER_META = {
+      LF1: { name: "LF1", color: "#1565c0" },
+      VNB: { name: "VNB", color: "#ef6c00" }
+    };
+    const LOCAL_META = {
+      FAILSAFE: { name: "Failsafe", color: "#c62828" },
+      SOFTSTART: { name: "Softstart", color: "#1976d2" }
+    };
+
+    // Disturbances: { wan, local, power } jeweils { enabled, from, to } (Legacy: { enabled, time }).
+    const EXAMPLE_CONFIGS = [
+      { id: "ex1", title: "Szenario 1: adhocPrio begrenzt Wallbox", plantMax: { lpc: 11, lpp: 0 },
+        commands: [{ type: "adhocPrio", partner: "LF1", direction: "LPC", pMax: 4.2, tIn: "17:25", tEffect: "17:30", tEnd: "19:30" }], disturbances: {} },
+      { id: "ex2", title: "Szenario 2: Gleicher Marktpartner – neuer Befehl ersetzt den alten (auch mit höherem Wert)", plantMax: { lpc: 11, lpp: 0 },
+        commands: [
+          { type: "adhocPrio", partner: "LF1", direction: "LPC", pMax: 4.2, tIn: "15:00", tEffect: "15:05", tEnd: "20:00" },
+          { type: "adhocPrio", partner: "LF1", direction: "LPC", pMax: 8, tIn: "16:00", tEffect: "16:15", tEnd: "20:00" }
+        ], disturbances: {} },
+      { id: "ex3", title: "Szenario 3: Unterschiedliche Marktpartner – der niedrigste Wert gilt", plantMax: { lpc: 11, lpp: 0 },
+        commands: [
+          { type: "adhocPrio", partner: "LF1", direction: "LPC", pMax: 6, tIn: "15:00", tEffect: "15:05", tEnd: "19:00" },
+          { type: "adhocPrio", partner: "VNB", direction: "LPC", pMax: 4.2, tIn: "15:20", tEffect: "15:30", tEnd: "18:00" }
+        ], disturbances: {} },
+      { id: "ex4", title: "Szenario 4: WAN-Störung – Befehle während der Störung werden abgelehnt", plantMax: { lpc: 11, lpp: 0 },
+        commands: [
+          { type: "adhocPrio", partner: "LF1", direction: "LPC", pMax: 6, tIn: "14:00", tEffect: "14:05", tEnd: "20:00" },
+          { type: "adhocPrio", partner: "LF1", direction: "LPC", pMax: 3, tIn: "16:30", tEffect: "16:35", tEnd: "19:00" },
+          { type: "adhocPrio", partner: "VNB", direction: "LPC", pMax: 4.2, tIn: "18:30", tEffect: "18:35", tEnd: "21:00" }
+        ], disturbances: { wan: { enabled: true, from: "16:00", to: "18:00" } } },
+      { id: "ex5", title: "Szenario 5: Lokale Störung – Failsafe für 45 min, danach unlimitiert", plantMax: { lpc: 11, lpp: 0 },
+        commands: [
+          { type: "adhocPrio", partner: "LF1", direction: "LPC", pMax: 4.2, tIn: "13:00", tEffect: "13:05", tEnd: "20:00" },
+          { type: "failsafe", direction: "LPC", pMax: 2, durationMin: 45, tIn: "08:00" }
+        ], disturbances: { local: { enabled: true, from: "15:00", to: "17:00" } } },
+      { id: "ex6", title: "Szenario 6: Spannungsausfall – Softstart übersteuert adhocPrio", plantMax: { lpc: 11, lpp: 0 },
+        commands: [
+          { type: "adhocPrio", partner: "LF1", direction: "LPC", pMax: 2, tIn: "12:00", tEffect: "12:05", tEnd: "22:00" },
+          { type: "softstart", direction: "LPC", steps: "15=0, 120=4, 120=7", tIn: "08:00" }
+        ], disturbances: { power: { enabled: true, from: "15:00", to: "15:30" } } },
+      { id: "ex7", title: "Szenario 7: Failsafe während WAN-Störung übertragen – abgelehnt, lokale Störung bleibt unlimitiert", plantMax: { lpc: 11, lpp: 0 },
+        commands: [
+          { type: "adhocPrio", partner: "LF1", direction: "LPC", pMax: 4.2, tIn: "09:00", tEffect: "09:05", tEnd: "20:00" },
+          { type: "failsafe", direction: "LPC", pMax: 2, durationMin: 60, tIn: "13:00" }
+        ], disturbances: {
+          wan: { enabled: true, from: "12:30", to: "13:30" },
+          local: { enabled: true, from: "15:00", to: "17:00" }
+        } }
+    ];
+
+    const MODE_META = {
+      NORMAL: { color: "rgba(46, 125, 50, 0.10)" },
+      ADHOC_PRIO_ACTIVE: { color: "rgba(255, 152, 0, 0.18)" },
+      FAILSAFE_ACTIVE: { color: "rgba(198, 40, 40, 0.15)" },
+      LOCAL_UNLIMITED: { color: "rgba(123, 31, 162, 0.13)" },
+      SOFTSTART_ACTIVE: { color: "rgba(21, 101, 192, 0.15)" },
+      POWER_OUTAGE: { color: "rgba(55, 71, 79, 0.22)" }
+    };
+
+    const EVENT_META = {
+      wan: { icon: "📡", cls: "event-wan" },
+      local: { icon: "🔌", cls: "event-local" },
+      power: { icon: "⚡", cls: "event-power" },
+      softstart: { icon: "🔧", cls: "event-softstart" },
+      failsafe: { icon: "🛡", cls: "event-failsafe" },
+      adhocPrio: { icon: "📨", cls: "event-adhocPrio" },
+      info: { icon: "•", cls: "event-info" }
+    };
+
+    const el = {
+      exampleConfigSelect: document.getElementById("exampleConfigSelect"),
+      loadExampleBtn: document.getElementById("loadExampleBtn"),
+      shareBtn: document.getElementById("shareBtn"),
+      exportJsonBtn: document.getElementById("exportJsonBtn"),
+      importJsonBtn: document.getElementById("importJsonBtn"),
+      importJsonInput: document.getElementById("importJsonInput"),
+      resetBtn: document.getElementById("resetBtn"),
+      addCommandBtn: document.getElementById("addCommandBtn"),
+      commandsContainer: document.getElementById("commandsContainer"),
+      wanEnabled: document.getElementById("wanEnabled"),
+      wanFrom: document.getElementById("wanFrom"),
+      wanTo: document.getElementById("wanTo"),
+      localEnabled: document.getElementById("localEnabled"),
+      localFrom: document.getElementById("localFrom"),
+      localTo: document.getElementById("localTo"),
+      powerEnabled: document.getElementById("powerEnabled"),
+      powerFrom: document.getElementById("powerFrom"),
+      powerTo: document.getElementById("powerTo"),
+      plantMaxLpc: document.getElementById("plantMaxLpc"),
+      plantMaxLpp: document.getElementById("plantMaxLpp"),
+      mainRow: document.getElementById("mainRow"),
+      sideTitle: document.getElementById("sideTitle"),
+      toggleSideBtn: document.getElementById("toggleSideBtn"),
+      whyCard: document.getElementById("whyCard"),
+      networkTable: document.getElementById("networkTable"),
+      stateTable: document.getElementById("stateTable"),
+      testResults: document.getElementById("testResults"),
+      eventTimeline: document.getElementById("eventTimeline"),
+      timelineTable: document.getElementById("timelineTable")
+    };
+
+    // Zählt Befehle, die beim Laden wegen nicht mehr unterstützter Art bzw. Marktpartner verworfen wurden.
+    let droppedCommandCount = 0;
+
+    let state = {
+      commands: [],
+      cmdCounter: 0,
+      selectedIdx: 180,
+      catalogs: {
+        examples: JSON.parse(JSON.stringify(EXAMPLE_CONFIGS))
+      }
+    };
+
+    const DEFAULT_UI = {
+      wan: { from: "16:00", to: "18:00" },
+      local: { from: "14:00", to: "16:00" },
+      power: { from: "15:00", to: "15:30" },
+      plantMax: { lpc: 11, lpp: 0 }
+    };
+
+    function timeToMin(hhmm) {
+      if (!/^\d{2}:\d{2}$/.test(hhmm || "")) return null;
+      const [h, m] = hhmm.split(":").map(Number);
+      if (h < 0 || h > 23 || m < 0 || m > 59) return null;
+      return h * 60 + m;
+    }
+
+    function minToTime(min) {
+      const m = mod1440(min);
+      const h = Math.floor(m / 60).toString().padStart(2, "0");
+      const mm = (m % 60).toString().padStart(2, "0");
+      return `${h}:${mm}`;
+    }
+
+    function mod1440(v) {
+      return ((v % 1440) + 1440) % 1440;
+    }
+
+    function toNum(v, fallback = 0) {
+      // Number("") === 0: leere Felder dürfen nicht stillschweigend zu 0 kW werden.
+      if (v === null || v === undefined) return fallback;
+      if (typeof v === "string" && v.trim() === "") return fallback;
+      const n = Number(v);
+      return Number.isFinite(n) ? n : fallback;
+    }
+
+    function clamp(v, min, max) {
+      return Math.max(min, Math.min(max, v));
+    }
+
+    function round2(v) {
+      return +Number(v).toFixed(2);
+    }
+
+    function addMinutes(hhmm, addMin) {
+      const start = timeToMin(hhmm);
+      if (start === null) return hhmm;
+      return minToTime(start + addMin);
+    }
+
+    // Gibt null zurück, wenn Befehlsart oder Marktpartner nicht (mehr) unterstützt werden.
+    function normalizeCommand(cmd) {
+      const type = String(cmd?.type ?? "adhocPrio");
+      if (!COMMAND_TYPES.includes(type)) {
+        droppedCommandCount += 1;
+        return null;
+      }
+      let partner = cmd?.partner === "MSB" ? "VNB" : cmd?.partner;
+      // Nicht mehr unterstützte Marktpartner (z. B. LF2) werden bei adhocPrio verworfen statt umgedeutet.
+      if (type === "adhocPrio" && partner !== undefined && partner !== null && !PARTNERS.includes(partner)) {
+        droppedCommandCount += 1;
+        return null;
+      }
+      if (!PARTNERS.includes(partner)) partner = "LF1";
+      const direction = cmd?.direction === "LPP" ? "LPP" : "LPC";
+      return {
+        type,
+        partner,
+        direction,
+        pMax: toNum(cmd?.pMax, 4.2),
+        durationMin: toNum(cmd?.durationMin, FAILSAFE_DEFAULT_DURATION),
+        steps: typeof cmd?.steps === "string" && cmd.steps.trim() ? cmd.steps : SOFTSTART_DEFAULT_STEPS[direction],
+        // Ältere Failsafe-/Softstart-Befehle haben keinen Übertragungszeitpunkt: dann als ab Tagesbeginn hinterlegt behandeln.
+        tIn: /^\d{2}:\d{2}$/.test(cmd?.tIn || "") ? cmd.tIn : (type === "adhocPrio" ? "15:30" : "00:00"),
+        tEffect: /^\d{2}:\d{2}$/.test(cmd?.tEffect || "") ? cmd.tEffect : "16:30",
+        tEnd: /^\d{2}:\d{2}$/.test(cmd?.tEnd || "") ? cmd.tEnd : "18:00"
+      };
+    }
+
+    function normalizeExample(raw, index) {
+      return {
+        id: String(raw?.id ?? `example_${index + 1}`),
+        title: String(raw?.title ?? `Beispiel ${index + 1}`),
+        plantMax: raw?.plantMax && typeof raw.plantMax === "object"
+          ? { lpc: toNum(raw.plantMax.lpc, DEFAULT_UI.plantMax.lpc), lpp: toNum(raw.plantMax.lpp, DEFAULT_UI.plantMax.lpp) }
+          : null,
+        commands: Array.isArray(raw?.commands) ? raw.commands.map(normalizeCommand).filter(Boolean) : [],
+        disturbances: typeof raw?.disturbances === "object" && raw?.disturbances ? raw.disturbances : {}
+      };
+    }
+
+    function renderCatalogSelects() {
+      const currentExample = el.exampleConfigSelect.value;
+      el.exampleConfigSelect.innerHTML = state.catalogs.examples.map(e => `<option value="${escapeHtml(e.id)}">${escapeHtml(e.title)}</option>`).join("");
+      if (state.catalogs.examples.some(e => e.id === currentExample)) el.exampleConfigSelect.value = currentExample;
+      if (!el.exampleConfigSelect.value && state.catalogs.examples.length) el.exampleConfigSelect.value = state.catalogs.examples[0].id;
+      el.loadExampleBtn.disabled = !state.catalogs.examples.length;
+    }
+
+    function setCommands(commands) {
+      state.commands = [];
+      state.cmdCounter = 0;
+      (Array.isArray(commands) ? commands : [])
+        .map(normalizeCommand)
+        .filter(Boolean)
+        .forEach(cmd => addCommand(cmd, false));
+      renderCommands();
+    }
+
+    function applyDisturbancesToUi(disturbances = {}, options = {}) {
+      const useLegacyTime = !!options.useLegacyTimeFields;
+      const wan = disturbances.wan || {};
+      const local = disturbances.local || {};
+      const power = disturbances.power || {};
+      const fromOf = o => o.from || (useLegacyTime ? o.time : "") || "";
+
+      el.wanEnabled.checked = !!wan.enabled;
+      el.wanFrom.value = fromOf(wan) || DEFAULT_UI.wan.from;
+      el.wanTo.value = wan.to || (useLegacyTime && wan.time ? "23:59" : "") || DEFAULT_UI.wan.to;
+
+      el.localEnabled.checked = !!local.enabled;
+      el.localFrom.value = fromOf(local) || DEFAULT_UI.local.from;
+      el.localTo.value = local.to || DEFAULT_UI.local.to;
+
+      // Ältere Konfigurationen kennen nur den Zeitpunkt des Spannungsabfalls: dann 30 min Ausfall annehmen.
+      const powerFrom = fromOf(power);
+      el.powerEnabled.checked = !!power.enabled;
+      el.powerFrom.value = powerFrom || DEFAULT_UI.power.from;
+      el.powerTo.value = power.to || (powerFrom ? addMinutes(powerFrom, 30) : DEFAULT_UI.power.to);
+    }
+
+    function inTimeWindow(minOfDay, from, to) {
+      const s = timeToMin(from);
+      const e = timeToMin(to);
+      if (s === null || e === null) return false;
+      // Von == Bis bedeutet "kein Fenster" und nicht "ganzer Tag".
+      if (s === e) return false;
+      return inMinuteWindow(minOfDay, s, e);
+    }
+
+    function windowValid(from, to) {
+      const s = timeToMin(from);
+      const e = timeToMin(to);
+      return s !== null && e !== null && s !== e;
+    }
+
+    // Einheitliche Fensterprüfung für Störungen UND Steuerbefehle, inkl. Mitternachtsumbruch.
+    function inMinuteWindow(minOfDay, startMin, endMin) {
+      if (startMin === null || endMin === null) return false;
+      if (startMin === endMin) return false;
+      if (startMin < endMin) return minOfDay >= startMin && minOfDay < endMin;
+      return minOfDay >= startMin || minOfDay < endMin;
+    }
+
+    // Stufen als Text "Dauer=kW, Dauer=kW, ..." (Dauer in Minuten). null = ungültig.
+    function parseSoftstartSteps(text) {
+      const parts = String(text ?? "").split(",").map(x => x.trim()).filter(Boolean);
+      if (!parts.length) return null;
+      const steps = [];
+      for (const part of parts) {
+        const m = part.match(/^(\d+(?:\.\d+)?)\s*=\s*(\d+(?:\.\d+)?)$/);
+        if (!m || Number(m[1]) <= 0) return null;
+        steps.push({ durationMin: Number(m[1]), limit: Number(m[2]) });
+      }
+      return steps;
+    }
+
+    function softstartTotalMin(steps) {
+      return steps.reduce((a, st) => a + st.durationMin, 0);
+    }
+
+    function softstartStepLimit(steps, elapsedMin) {
+      if (!steps || elapsedMin < 0) return null;
+      let acc = 0;
+      for (const st of steps) {
+        acc += st.durationMin;
+        if (elapsedMin < acc) return st.limit;
+      }
+      return null;
+    }
+
+    function buildConfigFromUi() {
+      return {
+        commands: state.commands.map(c => ({ ...c })),
+        disturbances: {
+          wan: { enabled: el.wanEnabled.checked, from: el.wanFrom.value, to: el.wanTo.value },
+          local: { enabled: el.localEnabled.checked, from: el.localFrom.value, to: el.localTo.value },
+          power: { enabled: el.powerEnabled.checked, from: el.powerFrom.value, to: el.powerTo.value }
+        },
+        plantMax: {
+          lpc: toNum(el.plantMaxLpc.value, DEFAULT_UI.plantMax.lpc),
+          lpp: toNum(el.plantMaxLpp.value, DEFAULT_UI.plantMax.lpp)
+        }
+      };
+    }
+
+    function applyConfigToUi(config, options = {}) {
+      if (!config || typeof config !== "object") return;
+      const resetMissingValues = !!options.resetMissingValues;
+
+      if (resetMissingValues || Array.isArray(config.commands)) {
+        setCommands(config.commands);
+      }
+
+      if (resetMissingValues || config.disturbances) {
+        applyDisturbancesToUi(config.disturbances || {}, options);
+      }
+
+      if (resetMissingValues || config.plantMax) {
+        el.plantMaxLpc.value = toNum(config.plantMax?.lpc, DEFAULT_UI.plantMax.lpc);
+        el.plantMaxLpp.value = toNum(config.plantMax?.lpp, DEFAULT_UI.plantMax.lpp);
+      }
+
+      update();
+    }
+
+    function setTable(tableEl, rows) {
+      if (!rows.length) {
+        tableEl.innerHTML = "<tr><td>-</td></tr>";
+        return;
+      }
+      const cols = Object.keys(rows[0]);
+      tableEl.innerHTML =
+        "<thead><tr>" + cols.map(c => `<th>${escapeHtml(c)}</th>`).join("") + "</tr></thead>" +
+        "<tbody>" + rows.map(r => "<tr>" + cols.map(c => `<td>${escapeHtml(r[c] ?? "")}</td>`).join("") + "</tr>").join("") + "</tbody>";
+    }
+
+    function addEvent(events, type, time, message) {
+      events.push({ type, time, message });
+    }
+
+    function cmdName(cmd) {
+      if (cmd.type === "failsafe") return "Failsafe";
+      if (cmd.type === "softstart") return "Softstart";
+      return `adhocPrio ${cmd.partner}`;
+    }
+
+    // Bereitet Steuerbefehle einmalig auf.
+    // adhocPrio: Wirksamkeitsfenster (inkl. Mitternachtsumbruch), Plausibilität, Ablehnung bei Eingang während WAN-Störung.
+    // Failsafe/Softstart: werden zum Übertragungszeitpunkt an die Anlage gegeben (während WAN-Störung abgelehnt)
+    // und dort ohne Zeitfenster hinterlegt. Beim auslösenden Ereignis gilt je Richtung der zuletzt vorher übertragene Befehl.
+    function prepareCommands(config, events) {
+      const dist = config.disturbances;
+      const wan = dist.wan;
+      const wanOn = !!wan.enabled && windowValid(wan.from, wan.to);
+      const rejectedByWan = inMin => wanOn && inTimeWindow(inMin, wan.from, wan.to);
+
+      const prepared = config.commands.map((cmd, order) => {
+        const item = { ...cmd, order, valid: true, rejected: false, issue: null, stepList: null };
+
+        if (cmd.type === "softstart" || cmd.type === "failsafe") {
+          item.inMin = timeToMin(cmd.tIn);
+          if (item.inMin === null) {
+            item.valid = false;
+            item.issue = "Ungültiger Übertragungszeitpunkt.";
+            return item;
+          }
+          if (cmd.type === "softstart") {
+            const steps = parseSoftstartSteps(cmd.steps);
+            if (!steps || softstartTotalMin(steps) >= 1440) {
+              item.valid = false;
+              item.issue = "Softstart-Stufen ungültig.";
+              return item;
+            }
+            item.stepList = steps;
+          } else {
+            const dur = toNum(cmd.durationMin, 0);
+            item.durationMin = dur;
+            if (!(dur > 0)) {
+              item.valid = false;
+              item.issue = "Failsafe-Dauer muss größer als 0 min sein.";
+              return item;
+            }
+          }
+          if (rejectedByWan(item.inMin)) {
+            item.rejected = true;
+            item.issue = "Übertragung während WAN-Störung – nicht übertragbar.";
+          }
+          return item;
+        }
+
+        item.inMin = timeToMin(cmd.tIn);
+        item.effectMin = timeToMin(cmd.tEffect);
+        item.endMin = timeToMin(cmd.tEnd);
+        if (item.inMin === null || item.effectMin === null || item.endMin === null) {
+          item.valid = false;
+          item.issue = "Ungültige Zeitangabe.";
+          return item;
+        }
+        if (item.effectMin < item.inMin) {
+          item.valid = false;
+          item.issue = "Wirkungszeitpunkt liegt vor dem Eingang.";
+          return item;
+        }
+        if (item.endMin === item.effectMin) {
+          item.valid = false;
+          item.issue = "Ende entspricht dem Wirkungsbeginn (Dauer 0).";
+          return item;
+        }
+        // WAN-Störung: Befehl kann nicht zum iMSys übertragen werden und wird abgelehnt (kein Nachholen).
+        if (rejectedByWan(item.inMin)) {
+          item.rejected = true;
+          item.issue = "Eingang während WAN-Störung – nicht übertragbar.";
+        }
+        return item;
+      });
+
+      // Zum Ereigniszeitpunkt hinterlegter Befehl: zugestellt und VOR dem Ereignis übertragen, der neueste gewinnt.
+      // Failsafe-Ereignis = Beginn der lokalen Störung, Softstart-Ereignis = Beginn des Spannungsausfalls
+      // (während des Ausfalls und der lokalen Störung kann die Anlage nichts mehr empfangen).
+      const pickStored = (type, dir, eventMin) => {
+        if (eventMin === null) return null;
+        const candidates = prepared
+          .filter(c => c.type === type && c.direction === dir && c.valid && !c.rejected && c.inMin < eventMin)
+          .sort((a, b) => a.inMin - b.inMin || a.order - b.order);
+        return candidates.length ? candidates[candidates.length - 1] : null;
+      };
+      const localOn = !!dist.local.enabled && windowValid(dist.local.from, dist.local.to);
+      const powerOn = !!dist.power.enabled && windowValid(dist.power.from, dist.power.to);
+      const local = { failsafe: { LPC: null, LPP: null }, softstart: { LPC: null, LPP: null } };
+      DIRECTIONS.forEach(d => {
+        local.failsafe[d] = localOn ? pickStored("failsafe", d, timeToMin(dist.local.from)) : null;
+        local.softstart[d] = powerOn ? pickStored("softstart", d, timeToMin(dist.power.from)) : null;
+      });
+
+      if (events) {
+        prepared.filter(c => c.type !== "adhocPrio").forEach(item => {
+          const name = cmdName(item);
+          const dir = DIR_LABEL[item.direction];
+          const evType = item.type;
+          const what = item.type === "softstart"
+            ? `Stufen ${item.steps}`
+            : `${toNum(item.pMax, 0)} kW für ${toNum(item.durationMin, 0)} min`;
+          if (!item.valid) {
+            addEvent(events, "info", item.inMin !== null ? item.tIn : "00:00", `${name} unwirksam: ${item.issue}`);
+            return;
+          }
+          if (item.rejected) {
+            addEvent(events, "wan", item.tIn, `${name} abgelehnt: WAN-Störung, Befehl kann nicht übertragen werden (${dir}, ${what})`);
+            return;
+          }
+          addEvent(events, evType, item.tIn, `${name} übertragen und in der Anlage hinterlegt (${dir}, ${what})`);
+        });
+
+        prepared.filter(c => c.type === "adhocPrio").forEach(item => {
+          const name = cmdName(item);
+          const dir = DIR_LABEL[item.direction];
+          addEvent(events, "adhocPrio", item.tIn, `${name} eingegangen (${dir}, max. ${toNum(item.pMax, 0)} kW)`);
+          if (!item.valid) {
+            addEvent(events, "info", item.tIn, `${name} unwirksam: ${item.issue}`);
+            return;
+          }
+          if (item.rejected) {
+            addEvent(events, "wan", item.tIn, `${name} abgelehnt: WAN-Störung, Befehl kann nicht übertragen werden (nicht umsetzbar)`);
+            return;
+          }
+          addEvent(events, "adhocPrio", minToTime(item.effectMin), `${name} wirksam (${dir}, max. ${toNum(item.pMax, 0)} kW)`);
+          addEvent(events, "adhocPrio", minToTime(item.endMin), `${name} endet (${dir})`);
+        });
+      }
+
+      return { prepared, local };
+    }
+
+    function simulate(config) {
+      const plant = {
+        lpc: Math.max(0, toNum(config.plantMax?.lpc, DEFAULT_UI.plantMax.lpc)),
+        lpp: Math.max(0, toNum(config.plantMax?.lpp, DEFAULT_UI.plantMax.lpp))
+      };
+      const plantByDir = { LPC: plant.lpc, LPP: plant.lpp };
+      const relevant = { LPC: plant.lpc > 0, LPP: plant.lpp > 0 };
+      const rows = [];
+      const events = [];
+
+      const dist = config.disturbances;
+      const wanOn = !!dist.wan.enabled && windowValid(dist.wan.from, dist.wan.to);
+      const localOn = !!dist.local.enabled && windowValid(dist.local.from, dist.local.to);
+      const powerOn = !!dist.power.enabled && windowValid(dist.power.from, dist.power.to);
+      const localStart = timeToMin(dist.local.from);
+      const powerEnd = timeToMin(dist.power.to);
+
+      const { prepared, local } = prepareCommands(config, events);
+      const hasFailsafeCfg = DIRECTIONS.some(d => relevant[d] && local.failsafe[d]);
+      const hasSoftstartCfg = DIRECTIONS.some(d => relevant[d] && local.softstart[d]);
+
+      if (wanOn) {
+        addEvent(events, "wan", dist.wan.from, "WAN-Störung beginnt: MSB → iMSys gestört, eingehende Befehle werden abgelehnt");
+        addEvent(events, "wan", dist.wan.to, "WAN-Störung beendet: Befehle werden wieder übertragen");
+      }
+      if (localOn) {
+        addEvent(events, "local", dist.local.from, hasFailsafeCfg
+          ? "Lokale Kommunikationsstörung erkannt: Anlage wechselt auf den hinterlegten Failsafe"
+          : "Lokale Kommunikationsstörung erkannt: kein Failsafe hinterlegt, unlimitiert");
+        addEvent(events, "local", dist.local.to, "Lokale Kommunikationsstörung behoben: aktive Steuerbefehle greifen wieder");
+      }
+      if (powerOn) {
+        addEvent(events, "power", dist.power.from, "Spannungsausfall: Leistung 0 kW");
+        addEvent(events, "power", dist.power.to, hasSoftstartCfg
+          ? "Spannungswiederkehr: hinterlegte Softstart-Rampe beginnt"
+          : "Spannungswiederkehr: kein Softstart hinterlegt, reguläre Steuerung");
+      }
+
+      const validationNotes = [];
+      prepared.forEach(c => {
+        if (!c.valid) {
+          validationNotes.push(`${c.inMin !== null && c.inMin !== undefined ? c.tIn + ": " : ""}${cmdName(c)} ${DIR_LABEL[c.direction]} unwirksam – ${c.issue}`);
+        } else if (c.rejected) {
+          validationNotes.push(`${c.tIn}: ${cmdName(c)} ${DIR_LABEL[c.direction]} abgelehnt – ${c.issue}`);
+        }
+      });
+
+      // Je Marktpartner und Art gewinnt der neuere Befehl (später eingegangen, dann später wirksam, dann später angelegt).
+      const adhoc = prepared
+        .filter(c => c.type === "adhocPrio" && c.valid)
+        .sort((a, b) => a.inMin - b.inMin || a.effectMin - b.effectMin || a.order - b.order);
+
+      const pickPerPartner = list => {
+        const by = {};
+        PARTNERS.forEach(s => { by[s] = { LPC: null, LPP: null }; });
+        list.forEach(c => { if (by[c.partner]) by[c.partner][c.direction] = c; });
+        return by;
+      };
+
+      for (let i = 0; i < 288; i++) {
+        const minOfDay = i * 5;
+        const hhmm = minToTime(minOfDay);
+
+        const wanActive = wanOn && inTimeWindow(minOfDay, dist.wan.from, dist.wan.to);
+        const localActive = localOn && inTimeWindow(minOfDay, dist.local.from, dist.local.to);
+        const powerOutage = powerOn && inTimeWindow(minOfDay, dist.power.from, dist.power.to);
+
+        // A) Marktpartner-Sicht: zugestellte und abgelehnte Befehle im Wirkungsfenster.
+        const inWindow = adhoc.filter(c => inMinuteWindow(minOfDay, c.effectMin, c.endMin));
+        const cmdBy = pickPerPartner(inWindow.filter(c => !c.rejected));
+        const rejBy = pickPerPartner(inWindow.filter(c => c.rejected));
+
+        const lim = {};
+        const rej = {};
+        PARTNERS.forEach(s => {
+          lim[s] = {};
+          rej[s] = {};
+          DIRECTIONS.forEach(d => {
+            lim[s][d] = relevant[d] && cmdBy[s][d] ? Math.max(0, toNum(cmdBy[s][d].pMax, 0)) : null;
+            rej[s][d] = relevant[d] && rejBy[s][d] ? Math.max(0, toNum(rejBy[s][d].pMax, 0)) : null;
+          });
+        });
+
+        // B) Lokale Steuerungen: Failsafe (nur lokale Störung, begrenzte Dauer) und Softstart (ab Spannungswiederkehr).
+        const fs = {};
+        const soft = {};
+        DIRECTIONS.forEach(d => {
+          fs[d] = null;
+          const fsCmd = local.failsafe[d];
+          if (localActive && relevant[d] && fsCmd && mod1440(minOfDay - localStart) < fsCmd.durationMin) {
+            fs[d] = Math.max(0, toNum(fsCmd.pMax, 0));
+          }
+          soft[d] = null;
+          const softCmd = local.softstart[d];
+          if (powerOn && !powerOutage && relevant[d] && softCmd) {
+            soft[d] = softstartStepLimit(softCmd.stepList, mod1440(minOfDay - powerEnd));
+          }
+        });
+
+        // C) Priorität: Spannungsausfall > Softstart > lokale Störung (Failsafe bzw. unlimitiert) > adhocPrio (Minimum) > Anlagenmaximum.
+        const cmdLimit = {};
+        const eff = {};
+        const by = {};
+        const reason = {};
+        DIRECTIONS.forEach(d => {
+          let cl = null;
+          let cb = null;
+          PARTNERS.forEach(s => {
+            const v = lim[s][d];
+            if (v !== null && (cl === null || v < cl)) { cl = v; cb = s; }
+          });
+          cmdLimit[d] = cl;
+
+          const plantV = plantByDir[d];
+          let value = plantV;
+          let limiter = "Anlagenmaximum";
+          let text = `keine Begrenzung (Anlagenmaximum ${plantV} kW)`;
+
+          if (powerOutage) {
+            value = 0;
+            limiter = "Spannungsausfall";
+            text = "Spannungsausfall – Leistung 0 kW";
+          } else if (soft[d] !== null) {
+            value = Math.min(soft[d], plantV);
+            limiter = "Softstart";
+            text = `Softstart (höchste Priorität) begrenzt auf ${round2(value)} kW`;
+          } else if (localActive) {
+            if (fs[d] !== null) {
+              value = Math.min(fs[d], plantV);
+              limiter = "Failsafe";
+              text = `lokale Störung – Failsafe begrenzt auf ${round2(value)} kW`;
+            } else {
+              limiter = "Lokale Störung (unlimitiert)";
+              text = `lokale Störung – ${local.failsafe[d] ? "Failsafe-Dauer abgelaufen" : "kein Failsafe konfiguriert"}, unlimitiert (${plantV} kW)`;
+            }
+          } else if (cl !== null && cl < plantV) {
+            value = cl;
+            limiter = PARTNER_META[cb].name;
+            text = `${limiter} begrenzt auf ${round2(value)} kW`;
+          }
+
+          eff[d] = round2(value);
+          by[d] = limiter;
+          reason[d] = text;
+        });
+
+        const relDirs = DIRECTIONS.filter(d => relevant[d]);
+        const hasAdhoc = PARTNERS.some(s => relDirs.some(d => lim[s][d] !== null));
+        const fsActive = relDirs.some(d => fs[d] !== null);
+        const softActive = relDirs.some(d => soft[d] !== null);
+        const overridden = powerOutage || softActive || localActive;
+
+        const activeControls = [];
+        if (powerOutage) activeControls.push("Spannungsausfall: Leistung 0 kW");
+        relDirs.forEach(d => {
+          if (soft[d] !== null) activeControls.push(`Softstart ${DIR_LABEL[d]} ≤ ${soft[d]} kW`);
+          if (fs[d] !== null) activeControls.push(`Failsafe ${DIR_LABEL[d]} ≤ ${fs[d]} kW`);
+        });
+        PARTNERS.forEach(s => relDirs.forEach(d => {
+          if (lim[s][d] !== null) activeControls.push(`adhocPrio ${s} ${DIR_LABEL[d]} ≤ ${lim[s][d]} kW${overridden ? " (übersteuert)" : ""}`);
+          if (rej[s][d] !== null) activeControls.push(`adhocPrio ${s} ${DIR_LABEL[d]} ${rej[s][d]} kW abgelehnt (WAN)`);
+        }));
+
+        const modeTokens = [];
+        if (powerOutage) modeTokens.push("POWER_OUTAGE");
+        if (softActive) modeTokens.push("SOFTSTART_ACTIVE");
+        if (localActive) modeTokens.push(fsActive ? "FAILSAFE_ACTIVE" : "LOCAL_UNLIMITED");
+        if (hasAdhoc) modeTokens.push(overridden ? "ADHOC_PRIO_OVERRIDDEN" : "ADHOC_PRIO_ACTIVE");
+        if (!modeTokens.length) modeTokens.push("NORMAL");
+
+        rows.push({
+          time: hhmm,
+          plant_lpc: plant.lpc,
+          plant_lpp: plant.lpp,
+          lim,
+          rej,
+          cmd_lpc: cmdLimit.LPC,
+          cmd_lpp: cmdLimit.LPP,
+          fs_lpc: fs.LPC,
+          fs_lpp: fs.LPP,
+          soft_lpc: soft.LPC,
+          soft_lpp: soft.LPP,
+          eff_lpc: eff.LPC,
+          eff_lpp: eff.LPP,
+          limited_by_lpc: by.LPC,
+          limited_by_lpp: by.LPP,
+          mode: modeTokens.join(" + "),
+          modePrimary: modeTokens[0],
+          wanActive,
+          localActive,
+          powerOutage,
+          fsActive,
+          softActive,
+          activeControls,
+          explanation: relDirs.length
+            ? relDirs.map(d => `${DIR_LABEL[d]}: ${reason[d]}`).join("; ")
+            : "Keine relevante Leistungsrichtung."
+        });
+      }
+
+      // Lokale Steuerungen: Beginn/Ende der tatsächlichen Wirkung als Ereignis.
+      let prevFs = false;
+      let prevSoft = false;
+      rows.forEach(r => {
+        if (r.fsActive && !prevFs) addEvent(events, "failsafe", r.time, "Failsafe-Wert wird eingehalten (lokale Kommunikationsstörung)");
+        if (!r.fsActive && prevFs) addEvent(events, "failsafe", r.time, r.localActive
+          ? "Failsafe-Dauer abgelaufen: unlimitiert bis Störungsende"
+          : "Failsafe endet");
+        if (r.softActive && !prevSoft) addEvent(events, "softstart", r.time, "Softstart-Rampe läuft (höchste Priorität, übersteuert adhocPrio)");
+        if (!r.softActive && prevSoft) addEvent(events, "softstart", r.time, "Softstart-Rampe beendet: reguläre Steuerung");
+        prevFs = r.fsActive;
+        prevSoft = r.softActive;
+      });
+
+      events.sort((a, b) => (timeToMin(a.time) ?? 0) - (timeToMin(b.time) ?? 0));
+      return { rows, events, validationNotes };
+    }
+
+    function noDisturbances() {
+      return {
+        wan: { enabled: false, from: "16:00", to: "18:00" },
+        local: { enabled: false, from: "14:00", to: "16:00" },
+        power: { enabled: false, from: "15:00", to: "15:30" }
+      };
+    }
+
+    function withDisturbances(patch) {
+      const d = noDisturbances();
+      Object.keys(patch).forEach(k => { d[k] = { ...d[k], ...patch[k] }; });
+      return d;
+    }
+
+    function buildTestConfig(overrides = {}) {
+      return {
+        plantMax: { lpc: 11, lpp: 0 },
+        commands: [],
+        disturbances: noDisturbances(),
+        ...overrides
+      };
+    }
+
+    function testCmd(o = {}) {
+      return { type: "adhocPrio", partner: "LF1", direction: "LPC", pMax: 4.2, tIn: "15:00", tEffect: "15:00", tEnd: "21:00", ...o };
+    }
+
+    function rowAt(sim, hhmm) {
+      return sim.rows.find(r => r.time === hhmm);
+    }
+
+    function effAt(sim, times) {
+      return times.map(t => rowAt(sim, t)?.eff_lpc);
+    }
+
+    function runValidationTests() {
+      const results = [];
+      const add = (name, pass, detail) => results.push({ name, pass: !!pass, detail });
+      const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+
+      const t1 = rowAt(simulate(buildTestConfig()), "18:00");
+      add("TEST 1: Ohne Befehl gilt das Anlagenmaximum",
+        t1 && t1.eff_lpc === 11,
+        `Consumption=${t1?.eff_lpc ?? "-"} kW (erwartet 11)`);
+
+      const sim2 = simulate(buildTestConfig({ commands: [testCmd({ tIn: "17:00", tEffect: "17:00", tEnd: "21:00" })] }));
+      const s2 = effAt(sim2, ["18:00", "22:00"]);
+      add("TEST 2: adhocPrio begrenzt nur im Wirkungsfenster",
+        same(s2, [4.2, 11]),
+        `18:00/22:00 = ${s2.join("/")} kW (erwartet 4.2/11)`);
+
+      const sim3 = simulate(buildTestConfig({ commands: [
+        testCmd({ pMax: 4, tIn: "15:00", tEffect: "15:00", tEnd: "20:00" }),
+        testCmd({ pMax: 8, tIn: "16:00", tEffect: "16:00", tEnd: "20:00" })
+      ] }));
+      const s3 = effAt(sim3, ["15:30", "17:00"]);
+      add("TEST 3: Gleicher Marktpartner – der neuere Befehl gewinnt (auch bei höherem Wert)",
+        same(s3, [4, 8]),
+        `15:30/17:00 = ${s3.join("/")} kW (erwartet 4/8)`);
+
+      const sim4 = simulate(buildTestConfig({ commands: [
+        testCmd({ partner: "LF1", pMax: 6 }),
+        testCmd({ partner: "VNB", pMax: 4.2 })
+      ] }));
+      const t4 = rowAt(sim4, "18:00");
+      add("TEST 4: Unterschiedliche Marktpartner – der niedrigste Wert gewinnt",
+        t4 && t4.eff_lpc === 4.2 && t4.limited_by_lpc === "VNB",
+        `Consumption=${t4?.eff_lpc ?? "-"} kW durch ${t4?.limited_by_lpc ?? "-"} (erwartet 4.2 durch VNB)`);
+
+      const sim5 = simulate(buildTestConfig({
+        plantMax: { lpc: 6, lpp: 6 },
+        commands: [testCmd({ direction: "LPP", pMax: 2 })]
+      }));
+      const t5 = rowAt(sim5, "18:00");
+      add("TEST 5: Production wird unabhängig von Consumption begrenzt",
+        t5 && t5.eff_lpp === 2 && t5.eff_lpc === 6,
+        `Production=${t5?.eff_lpp ?? "-"}, Consumption=${t5?.eff_lpc ?? "-"} kW (erwartet 2/6)`);
+
+      const sim6 = simulate(buildTestConfig({ commands: [testCmd({ pMax: 3, tIn: "20:00", tEffect: "22:00", tEnd: "02:00" })] }));
+      const s6 = effAt(sim6, ["23:00", "01:00", "21:00"]);
+      add("TEST 6: Befehl über Mitternacht wirkt",
+        same(s6, [3, 3, 11]),
+        `23:00/01:00/21:00 = ${s6.join("/")} kW (erwartet 3/3/11)`);
+
+      const sim7 = simulate(buildTestConfig({
+        commands: [
+          testCmd({ pMax: 4, tIn: "15:00", tEffect: "15:00", tEnd: "20:00" }),
+          testCmd({ pMax: 8, tIn: "16:30", tEffect: "16:30", tEnd: "20:00" }),
+          testCmd({ partner: "VNB", pMax: 3, tIn: "18:30", tEffect: "18:30", tEnd: "20:00" })
+        ],
+        disturbances: withDisturbances({ wan: { enabled: true, from: "16:00", to: "18:00" } })
+      }));
+      const t7a = rowAt(sim7, "17:00");
+      const t7b = rowAt(sim7, "19:00");
+      add("TEST 7: WAN-Störung – Befehl mit Eingang in der Störung wird abgelehnt, zugestellte Befehle wirken weiter",
+        t7a && t7a.eff_lpc === 4 && t7a.rej.LF1.LPC === 8 && t7b && t7b.eff_lpc === 3 && t7b.limited_by_lpc === "VNB",
+        `17:00=${t7a?.eff_lpc ?? "-"} kW (abgelehnt ${t7a?.rej.LF1.LPC ?? "-"}), 19:00=${t7b?.eff_lpc ?? "-"} kW durch ${t7b?.limited_by_lpc ?? "-"} (erwartet 4 / abgelehnt 8 / 3 durch VNB)`);
+
+      const fsCmd = (pMax, durationMin, tIn = "12:00") => testCmd({ type: "failsafe", pMax, durationMin, tIn });
+      const sim8 = simulate(buildTestConfig({
+        commands: [fsCmd(2, 60)],
+        disturbances: withDisturbances({ wan: { enabled: true, from: "14:00", to: "16:00" } })
+      }));
+      const s8 = effAt(sim8, ["14:30"]);
+      add("TEST 8: WAN-Störung aktiviert kein Failsafe",
+        same(s8, [11]),
+        `14:30 = ${s8.join("/")} kW (erwartet 11)`);
+
+      const localDist = withDisturbances({ local: { enabled: true, from: "14:00", to: "16:00" } });
+      const adhoc42 = testCmd({ pMax: 4.2, tIn: "12:00", tEffect: "12:00", tEnd: "20:00" });
+      const sim9 = simulate(buildTestConfig({ commands: [adhoc42, fsCmd(2, 30)], disturbances: localDist }));
+      const s9 = effAt(sim9, ["13:30", "14:15", "14:45", "16:30"]);
+      add("TEST 9: Lokale Störung – Failsafe für die Dauer, danach unlimitiert, nach Störungsende wieder adhocPrio",
+        same(s9, [4.2, 2, 11, 4.2]) && rowAt(sim9, "14:15")?.limited_by_lpc === "Failsafe",
+        `13:30/14:15/14:45/16:30 = ${s9.join("/")} kW (erwartet 4.2/2/11/4.2)`);
+
+      const sim10 = simulate(buildTestConfig({ commands: [adhoc42], disturbances: localDist }));
+      const s10 = effAt(sim10, ["14:15"]);
+      add("TEST 10: Lokale Störung ohne Failsafe-Befehl ist unlimitiert",
+        same(s10, [11]),
+        `14:15 = ${s10.join("/")} kW (erwartet 11)`);
+
+      const powerDist = withDisturbances({ power: { enabled: true, from: "14:00", to: "14:30" } });
+      const softCmd = testCmd({ type: "softstart", steps: "15=3, 120=4, 120=7", tIn: "12:00" });
+      const sim11 = simulate(buildTestConfig({ disturbances: powerDist, commands: [softCmd] }));
+      const times11 = ["13:55", "14:00", "14:25", "14:30", "14:40", "14:45", "16:40", "16:45", "18:40", "18:45"];
+      const s11 = effAt(sim11, times11);
+      add("TEST 11: Spannungsausfall = 0 kW, danach Softstart-Stufen (15=3, 120=4, 120=7) ab Wiederkehr",
+        same(s11, [11, 0, 0, 3, 3, 4, 4, 7, 7, 11]),
+        `${times11.join("/")} = ${s11.join("/")} kW (erwartet 11/0/0/3/3/4/4/7/7/11)`);
+
+      const sim12 = simulate(buildTestConfig({
+        disturbances: powerDist,
+        commands: [softCmd, testCmd({ pMax: 2, tIn: "12:00", tEffect: "12:00", tEnd: "20:00" })]
+      }));
+      const s12 = effAt(sim12, ["13:00", "14:15", "14:45", "18:45"]);
+      add("TEST 12: Softstart übersteuert adhocPrio (auch einen niedrigeren Wert)",
+        same(s12, [2, 0, 4, 2]) && rowAt(sim12, "14:45")?.limited_by_lpc === "Softstart",
+        `13:00/14:15/14:45/18:45 = ${s12.join("/")} kW (erwartet 2/0/4/2)`);
+
+      const sim13 = simulate(buildTestConfig({ disturbances: powerDist }));
+      const s13 = effAt(sim13, ["14:15", "14:30"]);
+      add("TEST 13: Spannungsausfall ohne Softstart – danach sofort reguläre Leistung",
+        same(s13, [0, 11]),
+        `14:15/14:30 = ${s13.join("/")} kW (erwartet 0/11)`);
+
+      const sim14 = simulate(buildTestConfig({ commands: [softCmd] }));
+      const s14 = effAt(sim14, ["14:40"]);
+      add("TEST 14: Softstart-Befehl ohne Spannungsausfall greift nicht",
+        same(s14, [11]),
+        `14:40 = ${s14.join("/")} kW (erwartet 11)`);
+
+      const sim15 = simulate(buildTestConfig({
+        commands: [fsCmd(2, 120), testCmd({ type: "softstart", steps: "60=5", tIn: "12:00" })],
+        disturbances: withDisturbances({
+          power: { enabled: true, from: "14:00", to: "14:30" },
+          local: { enabled: true, from: "14:00", to: "16:00" }
+        })
+      }));
+      const s15 = effAt(sim15, ["14:45", "15:45"]);
+      add("TEST 15: Softstart hat Vorrang vor Failsafe",
+        same(s15, [5, 2]),
+        `14:45/15:45 = ${s15.join("/")} kW (erwartet 5/2)`);
+
+      add("TEST 16: Gleiche Von-/Bis-Zeit ergibt kein Störungsfenster",
+        inTimeWindow(0, "16:00", "16:00") === false && inTimeWindow(990, "16:00", "18:00") === true,
+        `Von==Bis=${inTimeWindow(0, "16:00", "16:00")} (erwartet false)`);
+
+      add("TEST 17: Leeres Zahlenfeld nutzt den Standardwert",
+        toNum("", 4.2) === 4.2 && toNum("   ", 4.2) === 4.2 && toNum("0", 4.2) === 0,
+        `toNum("",4.2)=${toNum("", 4.2)}, toNum("0",4.2)=${toNum("0", 4.2)} (erwartet 4.2/0)`);
+
+      const parsed = parseSoftstartSteps("15=0, 60=2");
+      add("TEST 18: Softstart-Stufen werden geparst und ungültige Eingaben erkannt",
+        parsed && parsed.length === 2 && parsed[1].limit === 2 && parseSoftstartSteps("abc") === null && parseSoftstartSteps("") === null && parseSoftstartSteps("0=3") === null,
+        `"15=0, 60=2" -> ${parsed ? parsed.length : "ungültig"} Stufen, "abc" -> ${parseSoftstartSteps("abc") === null ? "ungültig" : "gültig"}`);
+
+      const droppedBefore = droppedCommandCount;
+      const lf2 = normalizeCommand({ type: "adhocPrio", partner: "LF2" });
+      droppedCommandCount = droppedBefore;
+      add("TEST 19: Befehle des entfernten Marktpartners LF2 werden verworfen",
+        lf2 === null && !PARTNERS.includes("LF2"),
+        `LF2-Befehl -> ${lf2 === null ? "verworfen" : "übernommen"} (erwartet verworfen)`);
+
+      const simFsWan = simulate(buildTestConfig({
+        commands: [fsCmd(2, 60, "13:00")],
+        disturbances: withDisturbances({
+          wan: { enabled: true, from: "12:30", to: "13:30" },
+          local: { enabled: true, from: "15:00", to: "17:00" }
+        })
+      }));
+      const simFsOk = simulate(buildTestConfig({
+        commands: [fsCmd(2, 60, "13:00")],
+        disturbances: withDisturbances({ local: { enabled: true, from: "15:00", to: "17:00" } })
+      }));
+      const s20 = [...effAt(simFsWan, ["15:15"]), ...effAt(simFsOk, ["15:15"])];
+      add("TEST 20: Failsafe, der während einer WAN-Störung übertragen wird, wird abgelehnt",
+        same(s20, [11, 2]),
+        `15:15 mit/ohne WAN-Störung bei Übertragung = ${s20.join("/")} kW (erwartet 11/2)`);
+
+      const simSoftWan = simulate(buildTestConfig({
+        commands: [testCmd({ type: "softstart", steps: "60=3", tIn: "13:00" })],
+        disturbances: withDisturbances({
+          wan: { enabled: true, from: "12:30", to: "13:30" },
+          power: { enabled: true, from: "14:00", to: "14:30" }
+        })
+      }));
+      const s21 = effAt(simSoftWan, ["14:40"]);
+      add("TEST 21: Softstart, der während einer WAN-Störung übertragen wird, wird abgelehnt",
+        same(s21, [11]),
+        `14:40 = ${s21.join("/")} kW (erwartet 11)`);
+
+      const localDist2 = withDisturbances({ local: { enabled: true, from: "14:00", to: "16:00" } });
+      const s22 = effAt(simulate(buildTestConfig({ commands: [fsCmd(2, 60, "14:30")], disturbances: localDist2 })), ["14:15", "14:45"]);
+      add("TEST 22: Failsafe, der erst nach Störungsbeginn übertragen wird, greift nicht",
+        same(s22, [11, 11]),
+        `14:15/14:45 = ${s22.join("/")} kW (erwartet 11/11)`);
+
+      const s23a = effAt(simulate(buildTestConfig({ commands: [fsCmd(3, 60, "11:00"), fsCmd(2, 60, "10:00")], disturbances: localDist2 })), ["14:15"]);
+      const s23b = effAt(simulate(buildTestConfig({ commands: [fsCmd(2, 60, "10:00"), fsCmd(3, 60, "15:00")], disturbances: localDist2 })), ["14:15"]);
+      add("TEST 23: Es gilt der zuletzt vor dem Ereignis übertragene Failsafe",
+        same([...s23a, ...s23b], [3, 2]),
+        `neuerer vor Störung / neuerer nach Störung = ${[...s23a, ...s23b].join("/")} kW (erwartet 3/2)`);
+
+      return results;
+    }
+
+    function renderTestResults(results) {
+      el.testResults.innerHTML = results.map(t =>
+        `<div class="event ${t.pass ? "test-pass" : "test-fail"}"><div>${t.pass ? "✅" : "❌"}</div><div><b>${escapeHtml(t.name)}</b><br />${escapeHtml(t.detail)}</div></div>`
+      ).join("");
+    }
+
+    // Zusammenhängende Zeitabschnitte, in denen predicate(row) gilt: [Startindex, Endindex].
+    function segments(rows, predicate) {
+      const segs = [];
+      let start = null;
+      rows.forEach((r, i) => {
+        const on = predicate(r);
+        if (on && start === null) start = i;
+        if (!on && start !== null) { segs.push([start, i]); start = null; }
+      });
+      if (start !== null) segs.push([start, rows.length - 1]);
+      return segs;
+    }
+
+    function buildModeShapes(rows) {
+      const shapes = [];
+      let start = 0;
+      for (let i = 1; i <= rows.length; i++) {
+        const changed = i === rows.length || rows[i].modePrimary !== rows[start].modePrimary;
+        if (!changed) continue;
+        const mode = rows[start].modePrimary;
+        const color = MODE_META[mode] ? MODE_META[mode].color : "rgba(0,0,0,0.03)";
+        shapes.push({
+          type: "rect",
+          xref: "x",
+          yref: "paper",
+          x0: rows[start].time,
+          // Band bis zum Beginn des Folgeschritts ziehen, sonst entstehen 5-Minuten-Lücken.
+          x1: i < rows.length ? rows[i].time : rows[rows.length - 1].time,
+          y0: 0, y1: 1,
+          fillcolor: color,
+          line: { width: 0 },
+          layer: "below"
+        });
+        start = i;
+      }
+      return shapes;
+    }
+
+    function buildWanShapes(rows) {
+      return segments(rows, r => r.wanActive).map(([a, b]) => ({
+        type: "rect", xref: "x", yref: "paper",
+        x0: rows[a].time, x1: rows[b].time, y0: 0, y1: 1,
+        fillcolor: "rgba(198, 40, 40, 0.10)", line: { width: 0 }, layer: "below"
+      }));
+    }
+
+    function buildWanLabels(rows) {
+      return segments(rows, r => r.wanActive).map(([a]) => ({
+        x: rows[a].time, xref: "x", y: 1, yref: "paper", xanchor: "left", yanchor: "top",
+        text: "WAN-Störung", showarrow: false, font: { size: 11, color: "#c62828" }
+      }));
+    }
+
+    function renderEvents(events) {
+      if (!events.length) {
+        el.eventTimeline.innerHTML = `<div class="event event-info"><div>•</div><div>Keine Ereignisse</div></div>`;
+        return;
+      }
+      el.eventTimeline.innerHTML = events.map(ev => {
+        const meta = EVENT_META[ev.type] || EVENT_META.info;
+        return `<div class="event ${meta.cls}"><div>${meta.icon}</div><div><b>${escapeHtml(ev.time)}</b> – ${escapeHtml(ev.message)}</div></div>`;
+      }).join("");
+    }
+
+    function escapeHtml(value) {
+      return String(value ?? "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
+    }
+
+    function renderCommands() {
+      if (!state.commands.length) {
+        el.commandsContainer.innerHTML = `<div class="subtle">Noch keine Befehle.</div>`;
+        return;
+      }
+      el.commandsContainer.innerHTML = state.commands.map(cmd => {
+        const isFs = cmd.type === "failsafe";
+        const isSoft = cmd.type === "softstart";
+        const isAdhoc = !isFs && !isSoft;
+        const issue = commandIssue(cmd);
+        return `
+        <div class="cmd${issue ? " cmd-invalid" : ""}" data-id="${cmd.id}">
+          <div class="cmd-header">
+            <span>Befehl #${cmd.id}</span>
+            <button data-action="remove">Entfernen</button>
+          </div>
+          <div class="row">
+            <select data-field="type">
+              <option value="adhocPrio" ${isAdhoc ? "selected" : ""}>adhocPrio</option>
+              <option value="failsafe" ${isFs ? "selected" : ""}>failsafe</option>
+              <option value="softstart" ${isSoft ? "selected" : ""}>softstart</option>
+            </select>
+            ${isAdhoc ? `<select data-field="partner">
+              ${PARTNERS.map(p => `<option value="${p}" ${cmd.partner === p ? "selected" : ""}>${p}</option>`).join("")}
+            </select>` : ""}
+            <select data-field="direction">
+              <option value="LPC" ${cmd.direction === "LPC" ? "selected" : ""}>Consumption</option>
+              <option value="LPP" ${cmd.direction === "LPP" ? "selected" : ""}>Production</option>
+            </select>
+          </div>
+          ${isAdhoc ? `
+          <div class="row"><label>Pmax [kW] <input data-field="pMax" type="number" step="0.1" min="0" value="${escapeHtml(cmd.pMax)}" /></label></div>
+          <div class="row">
+            <label>Eingang <input data-field="tIn" type="time" step="60" value="${escapeHtml(cmd.tIn)}" /></label>
+            <label>Wirkung <input data-field="tEffect" type="time" step="60" value="${escapeHtml(cmd.tEffect)}" /></label>
+            <label>Ende <input data-field="tEnd" type="time" step="60" value="${escapeHtml(cmd.tEnd)}" /></label>
+          </div>` : ""}
+          ${isFs ? `
+          <div class="row">
+            <label>Pmax [kW] <input data-field="pMax" type="number" step="0.1" min="0" value="${escapeHtml(cmd.pMax)}" /></label>
+            <label>Dauer [min] <input data-field="durationMin" type="number" step="1" min="1" value="${escapeHtml(cmd.durationMin)}" /></label>
+          </div>
+          <div class="row"><label>Übertragung <input data-field="tIn" type="time" step="60" value="${escapeHtml(cmd.tIn)}" /></label></div>
+          <div class="subtle">Wird zum Übertragungszeitpunkt an die Anlage gegeben (während einer WAN-Störung abgelehnt) und dort hinterlegt. Greift bei einer lokalen Kommunikationsstörung, die danach beginnt: ab Störungsbeginn für die angegebene Dauer, danach unlimitiert bis zum Störungsende.</div>` : ""}
+          ${isSoft ? `
+          <div class="row"><label>Stufen (Dauer in min = Grenze in kW) <input data-field="steps" type="text" value="${escapeHtml(cmd.steps)}" style="min-width:200px;" /></label></div>
+          <div class="row"><label>Übertragung <input data-field="tIn" type="time" step="60" value="${escapeHtml(cmd.tIn)}" /></label></div>
+          <div class="subtle">Wird zum Übertragungszeitpunkt an die Anlage gegeben (während einer WAN-Störung abgelehnt) und dort hinterlegt. Greift nach einem danach beginnenden Spannungsausfall ab Spannungswiederkehr mit höchster Priorität (übersteuert adhocPrio). Beispiel 15=3, 120=4, 120=7: erst 15 min 3 kW, dann 120 min 4 kW, dann 120 min 7 kW, danach reguläre Steuerung.</div>` : ""}
+          ${issue ? `<div class="cmd-issue">⚠ ${escapeHtml(issue)}</div>` : ""}
+        </div>
+      `;
+      }).join("");
+    }
+
+    // Prüft den Befehl für sich (ohne Bezug zu anderen Befehlen).
+    function basicIssue(cmd) {
+      if (cmd.type !== "adhocPrio" && timeToMin(cmd.tIn) === null) return "Ungültiger Übertragungszeitpunkt.";
+      if (cmd.type === "softstart") {
+        const steps = parseSoftstartSteps(cmd.steps);
+        if (!steps) return "Stufen ungültig – erwartet Dauer=kW, z. B. 15=0, 120=4.";
+        if (softstartTotalMin(steps) >= 1440) return "Die Stufen dauern zusammen 24 h oder länger.";
+        return null;
+      }
+      if (cmd.type === "failsafe") {
+        if (!(toNum(cmd.durationMin, 0) > 0)) return "Dauer muss größer als 0 min sein – der Befehl bleibt wirkungslos.";
+        return null;
+      }
+      const inMin = timeToMin(cmd.tIn);
+      const effectMin = timeToMin(cmd.tEffect);
+      const endMin = timeToMin(cmd.tEnd);
+      if (inMin === null || effectMin === null || endMin === null) return "Ungültige Zeitangabe.";
+      if (effectMin < inMin) return "Wirkungszeitpunkt liegt vor dem Eingang – der Befehl bleibt wirkungslos.";
+      if (endMin === effectMin) return "Ende entspricht dem Wirkungsbeginn (Dauer 0) – der Befehl bleibt wirkungslos.";
+      return null;
+    }
+
+    function commandIssue(cmd) {
+      const basic = basicIssue(cmd);
+      if (basic) return basic;
+      // Ablehnung durch WAN-Störung direkt am Befehl anzeigen (gilt für alle Befehlsarten).
+      if (el.wanEnabled.checked && inTimeWindow(timeToMin(cmd.tIn), el.wanFrom.value, el.wanTo.value)) {
+        return cmd.type === "adhocPrio"
+          ? "Eingang während WAN-Störung – wird abgelehnt."
+          : "Übertragung während WAN-Störung – wird abgelehnt und nicht in der Anlage hinterlegt.";
+      }
+      return null;
+    }
+
+    // Aktualisiert nur die Warnhinweise, ohne die Eingabefelder neu zu bauen (Fokus bleibt erhalten).
+    function refreshCommandIssues() {
+      state.commands.forEach(cmd => {
+        const cmdEl = el.commandsContainer.querySelector(`.cmd[data-id="${cmd.id}"]`);
+        if (!cmdEl) return;
+        const issue = commandIssue(cmd);
+        let box = cmdEl.querySelector(".cmd-issue");
+        if (issue) {
+          if (!box) {
+            box = document.createElement("div");
+            box.className = "cmd-issue";
+            cmdEl.appendChild(box);
+          }
+          box.textContent = `⚠ ${issue}`;
+          cmdEl.classList.add("cmd-invalid");
+        } else {
+          if (box) box.remove();
+          cmdEl.classList.remove("cmd-invalid");
+        }
+      });
+    }
+
+    function addCommand(seed, shouldRefresh = true) {
+      state.cmdCounter += 1;
+      state.commands.push({
+        id: state.cmdCounter,
+        type: seed?.type ?? "adhocPrio",
+        partner: seed?.partner ?? "LF1",
+        direction: seed?.direction ?? "LPC",
+        pMax: seed?.pMax ?? 4.2,
+        durationMin: seed?.durationMin ?? FAILSAFE_DEFAULT_DURATION,
+        steps: seed?.steps ?? SOFTSTART_DEFAULT_STEPS[seed?.direction === "LPP" ? "LPP" : "LPC"],
+        tIn: seed?.tIn ?? "15:30",
+        tEffect: seed?.tEffect ?? "16:30",
+        tEnd: seed?.tEnd ?? "18:00"
+      });
+      if (shouldRefresh) {
+        renderCommands();
+        update();
+      }
+    }
+
+    function loadExampleConfig(exampleId) {
+      const ex = state.catalogs.examples.find(e => e.id === exampleId);
+      if (!ex) return;
+      // Beispiele sind in sich geschlossen: alles, was nicht definiert ist, wird auf Standard gesetzt.
+      applyConfigToUi({
+        commands: ex.commands,
+        disturbances: ex.disturbances,
+        plantMax: ex.plantMax
+      }, { useLegacyTimeFields: true, resetMissingValues: true });
+    }
+
+    function buildScenarioPackage() {
+      const config = buildConfigFromUi();
+      return {
+        version: 4,
+        exportedAt: new Date().toISOString(),
+        exampleConfigs: state.catalogs.examples.map(e => ({ ...e, commands: e.commands.map(c => ({ ...c })) })),
+        currentConfig: {
+          commands: config.commands.map(c => ({ ...c })),
+          disturbances: {
+            wan: { ...config.disturbances.wan },
+            local: { ...config.disturbances.local },
+            power: { ...config.disturbances.power }
+          },
+          plantMax: { ...config.plantMax }
+        }
+      };
+    }
+
+    function downloadScenarioPackage() {
+      const payload = buildScenarioPackage();
+      const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `energy-flex-szenarien-${stamp}.json`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    }
+
+    function applyScenarioPackage(pkg) {
+      if (!pkg || typeof pkg !== "object") throw new Error("Ungültige JSON-Struktur.");
+      droppedCommandCount = 0;
+
+      if (Array.isArray(pkg.exampleConfigs)) {
+        state.catalogs.examples = pkg.exampleConfigs.map(normalizeExample);
+      }
+      renderCatalogSelects();
+
+      if (pkg.currentConfig && typeof pkg.currentConfig === "object") {
+        applyConfigToUi(pkg.currentConfig, { resetMissingValues: true });
+      } else {
+        update();
+      }
+    }
+
+    function buildShareUrl(config) {
+      const p = new URLSearchParams();
+      const d = config.disturbances;
+      if (d.wan.enabled) p.set("wan", `${d.wan.from},${d.wan.to}`);
+      if (d.local.enabled) p.set("local", `${d.local.from},${d.local.to}`);
+      if (d.power.enabled) p.set("power", `${d.power.from},${d.power.to}`);
+      p.set("nmax", `${config.plantMax.lpc},${config.plantMax.lpp}`);
+      p.set("commands", JSON.stringify(config.commands.map(c => {
+        if (c.type === "failsafe") return { type: c.type, direction: c.direction, pMax: c.pMax, durationMin: c.durationMin, tIn: c.tIn };
+        if (c.type === "softstart") return { type: c.type, direction: c.direction, steps: c.steps, tIn: c.tIn };
+        return { type: c.type, partner: c.partner, direction: c.direction, pMax: c.pMax, tIn: c.tIn, tEffect: c.tEffect, tEnd: c.tEnd };
+      })));
+      // location.origin ist bei lokal geöffneten Dateien "null" – deshalb aus href ableiten.
+      const base = String(location.href).split("#")[0].split("?")[0];
+      return `${base}?${p.toString()}`;
+    }
+
+    function applyUrlConfig() {
+      const p = new URLSearchParams(location.search);
+      const wan = p.get("wan");
+      if (wan) {
+        const [from, to] = wan.split(",");
+        el.wanEnabled.checked = true;
+        el.wanFrom.value = from || DEFAULT_UI.wan.from;
+        el.wanTo.value = to || "23:59";
+      }
+      const localParam = p.get("local");
+      if (localParam) {
+        const [from, to] = localParam.split(",");
+        el.localEnabled.checked = true;
+        el.localFrom.value = from || DEFAULT_UI.local.from;
+        el.localTo.value = to || DEFAULT_UI.local.to;
+      }
+      const power = p.get("power");
+      if (power) {
+        const [from, to] = power.split(",");
+        el.powerEnabled.checked = true;
+        el.powerFrom.value = from || DEFAULT_UI.power.from;
+        el.powerTo.value = to || addMinutes(el.powerFrom.value, 30);
+      }
+
+      const nmax = p.get("nmax");
+      if (nmax) {
+        const [lpc, lpp] = nmax.split(",");
+        if (lpc) el.plantMaxLpc.value = lpc;
+        if (lpp) el.plantMaxLpp.value = lpp;
+      }
+
+      try {
+        const cmds = JSON.parse(p.get("commands") || "[]");
+        setCommands(cmds);
+      } catch (_) {}
+    }
+
+    // Zeitregler: senkrechte Linie plus Zeitbeschriftung am oberen Rand, in beiden Grafiken identisch.
+    function cursorShape(rows) {
+      const t = rows[clamp(state.selectedIdx, 0, rows.length - 1)].time;
+      return { type: "line", xref: "x", yref: "paper", x0: t, x1: t, y0: 0, y1: 1, line: { color: "#263238", width: 2 }, layer: "above" };
+    }
+
+    function cursorAnnotation(rows) {
+      const t = rows[clamp(state.selectedIdx, 0, rows.length - 1)].time;
+      return {
+        x: t, xref: "x", y: 1, yref: "paper", yanchor: "bottom", text: t, showarrow: false,
+        bgcolor: "#263238", font: { color: "#ffffff", size: 12 }, borderpad: 3
+      };
+    }
+
+    // Der Zeitregler ist immer die letzte Form und die erste Beschriftung (siehe updateCursors).
+    function buildPlotLayout(title, rows, bandShapes, extraAnnotations = []) {
+      return {
+        title,
+        hovermode: "x unified",
+        xaxis: { title: { text: "Zeit", standoff: 18 }, automargin: true },
+        yaxis: { title: "Leistung [kW]", automargin: true },
+        dragmode: false,
+        shapes: [...bandShapes, cursorShape(rows)],
+        annotations: [cursorAnnotation(rows), ...extraAnnotations],
+        margin: { l: 50, r: 12, t: 60, b: 110 },
+        legend: { orientation: "h", y: -0.28, yanchor: "top", x: 0, xanchor: "left" }
+      };
+    }
+
+    // Production wird negativ dargestellt; 0 bleibt 0 (kein "-0").
+    function neg(v) {
+      return v === null || v === undefined ? null : (v === 0 ? 0 : -v);
+    }
+
+    function posOrNull(v) {
+      return v > 0 ? v : null;
+    }
+
+    // Zeichnet eine Kurve nur, wenn sie tatsächlich Werte enthält – so verschwinden
+    // Grenzkurven, die gerade gar nicht wirken. Stufenform, weil die Grenzen Treppenfunktionen sind.
+    function optionalTrace(x, values, trace) {
+      if (!values.some(v => v !== null && v !== undefined)) return null;
+      return { x, y: values, connectgaps: false, ...trace, line: { shape: "hv", ...trace.line } };
+    }
+
+    function buildMsbTraces(rows) {
+      const x = rows.map(r => r.time);
+      const traces = [];
+      const push = t => { if (t) traces.push(t); };
+
+      push(optionalTrace(x, rows.map(r => posOrNull(r.plant_lpc)), {
+        name: "Anlagenmaximum Consumption", mode: "lines", line: { color: "#90a4ae", dash: "dot", width: 1.4 }
+      }));
+      push(optionalTrace(x, rows.map(r => neg(posOrNull(r.plant_lpp))), {
+        name: "Anlagenmaximum Production", mode: "lines", line: { color: "#90a4ae", dash: "dot", width: 1.4 }
+      }));
+
+      PARTNERS.forEach(s => {
+        const meta = PARTNER_META[s];
+        push(optionalTrace(x, rows.map(r => r.lim[s].LPC), {
+          name: `${meta.name} Consumption`, mode: "lines", line: { color: meta.color, dash: "solid", width: 1.8 }
+        }));
+        push(optionalTrace(x, rows.map(r => neg(r.lim[s].LPP)), {
+          name: `${meta.name} Production`, mode: "lines", line: { color: meta.color, dash: "dash", width: 1.8 }
+        }));
+        push(optionalTrace(x, rows.map(r => r.rej[s].LPC), {
+          name: `${meta.name} Consumption – abgelehnt (WAN)`, mode: "lines", opacity: 0.6,
+          line: { color: meta.color, dash: "dot", width: 2.2 }
+        }));
+        push(optionalTrace(x, rows.map(r => neg(r.rej[s].LPP)), {
+          name: `${meta.name} Production – abgelehnt (WAN)`, mode: "lines", opacity: 0.6,
+          line: { color: meta.color, dash: "dashdot", width: 2.2 }
+        }));
+      });
+
+      push(optionalTrace(x, rows.map(r => r.cmd_lpc), {
+        name: "Grenze aus Befehlen Consumption (Minimum)", mode: "lines", line: { color: "#263238", width: 3 }
+      }));
+      push(optionalTrace(x, rows.map(r => neg(r.cmd_lpp)), {
+        name: "Grenze aus Befehlen Production (Minimum)", mode: "lines", line: { color: "#263238", dash: "dash", width: 3 }
+      }));
+
+      return traces;
+    }
+
+    function buildLocalTraces(rows) {
+      const x = rows.map(r => r.time);
+      const traces = [];
+      const push = t => { if (t) traces.push(t); };
+
+      push(optionalTrace(x, rows.map(r => posOrNull(r.plant_lpc)), {
+        name: "Anlagenmaximum Consumption", mode: "lines", line: { color: "#90a4ae", dash: "dot", width: 1.2 }
+      }));
+      push(optionalTrace(x, rows.map(r => neg(posOrNull(r.plant_lpp))), {
+        name: "Anlagenmaximum Production", mode: "lines", line: { color: "#90a4ae", dash: "dot", width: 1.2 }
+      }));
+      push(optionalTrace(x, rows.map(r => r.plant_lpc > 0 ? r.eff_lpc : null), {
+        name: "Zulässig Consumption", mode: "lines", fill: "tozeroy", fillcolor: "rgba(46, 125, 50, 0.15)",
+        line: { color: "#2e7d32", width: 2.4 }
+      }));
+      push(optionalTrace(x, rows.map(r => r.plant_lpp > 0 ? neg(r.eff_lpp) : null), {
+        name: "Zulässig Production", mode: "lines", fill: "tozeroy", fillcolor: "rgba(0, 137, 123, 0.15)",
+        line: { color: "#00897b", width: 2.4 }
+      }));
+      push(optionalTrace(x, rows.map(r => r.soft_lpc), {
+        name: "Softstart Consumption", mode: "lines", line: { color: LOCAL_META.SOFTSTART.color, dash: "dash", width: 1.4 }
+      }));
+      push(optionalTrace(x, rows.map(r => neg(r.soft_lpp)), {
+        name: "Softstart Production", mode: "lines", line: { color: "#42a5f5", dash: "dash", width: 1.4 }
+      }));
+      push(optionalTrace(x, rows.map(r => r.fs_lpc), {
+        name: "Failsafe Consumption", mode: "lines", line: { color: LOCAL_META.FAILSAFE.color, dash: "dashdot", width: 1.4 }
+      }));
+      push(optionalTrace(x, rows.map(r => neg(r.fs_lpp)), {
+        name: "Failsafe Production", mode: "lines", line: { color: "#e57373", dash: "dashdot", width: 1.4 }
+      }));
+
+      return traces;
+    }
+
+    function fmtKw(v) {
+      return v === null || v === undefined ? "-" : `${v} kW`;
+    }
+
+    // Aufwendige Simulation nur bei Konfigurationsänderung, nicht bei jeder Slider-Bewegung.
+    let lastSim = null;
+    let cachedTestResults = null;
+
+    function update(options = {}) {
+      const displayOnly = !!options.displayOnly && lastSim !== null;
+
+      if (!displayOnly) {
+        const config = buildConfigFromUi();
+        lastSim = simulate(config);
+        renderPlots(lastSim.rows);
+        renderEvents(lastSim.events);
+        if (!cachedTestResults) cachedTestResults = runValidationTests();
+        renderTestResults(cachedTestResults);
+        renderTimelineTable(lastSim.rows);
+        // Hinweise hängen auch von der WAN-Störung ab, daher bei jeder Konfigurationsänderung auffrischen.
+        refreshCommandIssues();
+      }
+
+      renderCurrentState(lastSim);
+    }
+
+    function renderPlots(rows) {
+      Plotly.react("chartMsb", buildMsbTraces(rows),
+        buildPlotLayout("Befehle je Marktpartner und Grenze", rows, buildWanShapes(rows), buildWanLabels(rows)),
+        { responsive: true, displaylogo: false });
+      Plotly.react("chartLocal", buildLocalTraces(rows),
+        buildPlotLayout("Tatsächlich zulässige Leistung", rows, buildModeShapes(rows)),
+        { responsive: true, displaylogo: false });
+    }
+
+    function pairText(c, p) {
+      return `${c ?? "-"} / ${p ?? "-"}`;
+    }
+
+    function renderTimelineTable(rows) {
+      const timelineRows = rows.filter((_, i) => i % 6 === 0).map(r => ({
+        Zeit: r.time,
+        Modus: r.mode,
+        "Anlagenmax C/P": pairText(r.plant_lpc, r.plant_lpp),
+        "LF1 C/P": pairText(r.lim.LF1.LPC, r.lim.LF1.LPP),
+        "VNB C/P": pairText(r.lim.VNB.LPC, r.lim.VNB.LPP),
+        "Failsafe C/P": pairText(r.fs_lpc, r.fs_lpp),
+        "Softstart C/P": pairText(r.soft_lpc, r.soft_lpp),
+        "Zulässig C/P": pairText(r.eff_lpc, r.eff_lpp)
+      }));
+      setTable(el.timelineTable, timelineRows);
+    }
+
+    function renderCurrentState(sim) {
+      if (!sim) return;
+      const rows = sim.rows;
+      const idx = clamp(state.selectedIdx, 0, rows.length - 1);
+      const current = rows[idx];
+
+      const partnerLines = PARTNERS.map(s => {
+        const r = current.rej[s];
+        const rejText = r.LPC !== null || r.LPP !== null
+          ? ` <span style="color:var(--danger)">(abgelehnt: ${escapeHtml(fmtKw(r.LPC))} / ${escapeHtml(fmtKw(r.LPP))})</span>`
+          : "";
+        return `${escapeHtml(PARTNER_META[s].name)}: <b>${escapeHtml(fmtKw(current.lim[s].LPC))} / ${escapeHtml(fmtKw(current.lim[s].LPP))}</b>${rejText}`;
+      }).join("<br />");
+
+      el.whyCard.innerHTML = `
+        <b>Warum ist die zulässige Leistung aktuell so?</b><br />
+        <b>${escapeHtml(current.time)}</b> (jeweils Consumption / Production)<br />
+        Anlagenmaximum: <b>${current.plant_lpc} kW / ${current.plant_lpp} kW</b><br />
+        ${partnerLines}<br />
+        Grenze aus Befehlen (Minimum): <b>${escapeHtml(fmtKw(current.cmd_lpc))} / ${escapeHtml(fmtKw(current.cmd_lpp))}</b><br />
+        Failsafe: <b>${escapeHtml(fmtKw(current.fs_lpc))} / ${escapeHtml(fmtKw(current.fs_lpp))}</b><br />
+        Softstart: <b>${escapeHtml(fmtKw(current.soft_lpc))} / ${escapeHtml(fmtKw(current.soft_lpp))}</b><br />
+        Zulässige Leistung: <b>${current.eff_lpc} kW / ${current.eff_lpp} kW</b><br />
+        Aktiver Modus: <b>${escapeHtml(current.mode)}</b><br />
+        Aktiv: ${escapeHtml(current.activeControls.length ? current.activeControls.join("; ") : "keine zusätzlichen Steuerungen")}<br />
+        Begründung: ${escapeHtml(current.explanation)}
+      `;
+
+      setTable(el.networkTable, [
+        { Verbindung: "Marktpartner → MSB", Status: "aktiv" },
+        { Verbindung: "MSB → iMSys (WAN)", Status: current.wanActive ? "gestört – eingehende Befehle werden abgelehnt" : "aktiv" },
+        { Verbindung: "iMSys → Anlage (lokal)", Status: current.localActive ? (current.fsActive ? "gestört – Failsafe aktiv" : "gestört – unlimitiert") : "aktiv" },
+        { Verbindung: "Netzspannung", Status: current.powerOutage ? "Ausfall – Leistung 0 kW" : (current.softActive ? "wiederhergestellt – Softstart läuft" : "vorhanden") }
+      ]);
+
+      setTable(el.stateTable, [
+        { Attribut: "Betriebsmodus", Wert: current.mode },
+        { Attribut: "Anlagenmax Consumption [kW]", Wert: current.plant_lpc },
+        { Attribut: "Anlagenmax Production [kW]", Wert: current.plant_lpp },
+        { Attribut: "Grenze aus Befehlen Consumption [kW]", Wert: current.cmd_lpc ?? "-" },
+        { Attribut: "Grenze aus Befehlen Production [kW]", Wert: current.cmd_lpp ?? "-" },
+        { Attribut: "Failsafe Consumption [kW]", Wert: current.fs_lpc ?? "-" },
+        { Attribut: "Failsafe Production [kW]", Wert: current.fs_lpp ?? "-" },
+        { Attribut: "Softstart Consumption [kW]", Wert: current.soft_lpc ?? "-" },
+        { Attribut: "Softstart Production [kW]", Wert: current.soft_lpp ?? "-" },
+        { Attribut: "Zulässig Consumption [kW]", Wert: current.eff_lpc },
+        { Attribut: "Zulässig Production [kW]", Wert: current.eff_lpp },
+        { Attribut: "Begrenzt durch (Consumption)", Wert: current.limited_by_lpc },
+        { Attribut: "Begrenzt durch (Production)", Wert: current.limited_by_lpp }
+      ]);
+
+      if (sim.validationNotes.length) {
+        const extra = sim.validationNotes.slice(0, 4).map(v => `<div>${escapeHtml(v)}</div>`).join("");
+        el.whyCard.innerHTML += `<hr /><b>Hinweise zu Befehlen:</b>${extra}`;
+      }
+    }
+
+    // Verschiebt den Zeitregler in beiden Grafiken, ohne die Simulation neu zu rechnen.
+    function updateCursors() {
+      if (!lastSim) return;
+      const t = lastSim.rows[clamp(state.selectedIdx, 0, lastSim.rows.length - 1)].time;
+      ["chartMsb", "chartLocal"].forEach(id => {
+        const gd = document.getElementById(id);
+        const n = gd && gd.layout && gd.layout.shapes ? gd.layout.shapes.length : 0;
+        if (!n) return;
+        Plotly.relayout(gd, {
+          [`shapes[${n - 1}].x0`]: t,
+          [`shapes[${n - 1}].x1`]: t,
+          "annotations[0].x": t,
+          "annotations[0].text": t
+        });
+      });
+    }
+
+    function setSelectedIdx(idx) {
+      if (!lastSim) return;
+      const next = clamp(Math.round(idx), 0, lastSim.rows.length - 1);
+      if (next === state.selectedIdx) return;
+      state.selectedIdx = next;
+      renderCurrentState(lastSim);
+      updateCursors();
+    }
+
+    function bindCursorDrag() {
+      let dragging = null;
+      const idxFromEvent = (gd, e) => {
+        const fl = gd._fullLayout;
+        if (!fl || !fl._size || !fl.xaxis || !lastSim) return null;
+        const size = fl._size;
+        const n = lastSim.rows.length;
+        const px = e.clientX - gd.getBoundingClientRect().left - size.l;
+        const r = fl.xaxis.range;
+        const lo = Number.isFinite(r && r[0]) ? r[0] : 0;
+        const hi = Number.isFinite(r && r[1]) ? r[1] : n - 1;
+        return clamp(Math.round(lo + (px / size.w) * (hi - lo)), 0, n - 1);
+      };
+      ["chartMsb", "chartLocal"].forEach(id => {
+        const gd = document.getElementById(id);
+        gd.addEventListener("pointerdown", e => {
+          const fl = gd._fullLayout;
+          if (!fl || !fl._size) return;
+          const size = fl._size;
+          const rect = gd.getBoundingClientRect();
+          const px = e.clientX - rect.left;
+          const py = e.clientY - rect.top;
+          // Nur im Plotbereich (inkl. Beschriftung am oberen Rand) reagieren, nicht auf Legende/Achsen.
+          if (px < size.l || px > size.l + size.w || py < 0 || py > size.t + size.h) return;
+          dragging = gd;
+          try { gd.setPointerCapture(e.pointerId); } catch (_) {}
+          e.preventDefault();
+          const idx = idxFromEvent(gd, e);
+          if (idx !== null) setSelectedIdx(idx);
+        });
+        gd.addEventListener("pointermove", e => {
+          if (dragging !== gd) return;
+          const idx = idxFromEvent(gd, e);
+          if (idx !== null) setSelectedIdx(idx);
+        });
+        const end = () => { dragging = null; };
+        gd.addEventListener("pointerup", end);
+        gd.addEventListener("pointercancel", end);
+      });
+    }
+
+    // Seitenleiste ein-/ausklappen; die Diagramme werden danach an die neue Breite angepasst.
+    function setSideCollapsed(collapsed, remember = true) {
+      el.mainRow.classList.toggle("side-collapsed", collapsed);
+      el.toggleSideBtn.textContent = collapsed ? "«" : "»";
+      el.toggleSideBtn.title = collapsed ? "Seitenleiste ausklappen" : "Seitenleiste einklappen";
+      el.toggleSideBtn.setAttribute("aria-expanded", String(!collapsed));
+      if (remember) {
+        try { localStorage.setItem(SIDE_STORAGE_KEY, collapsed ? "1" : "0"); } catch (_) {}
+      }
+      requestAnimationFrame(() => {
+        ["chartMsb", "chartLocal"].forEach(id => {
+          const gd = document.getElementById(id);
+          if (gd && gd.data && window.Plotly) Plotly.Plots.resize(gd);
+        });
+      });
+    }
+
+    function bind() {
+      el.addCommandBtn.addEventListener("click", () => addCommand());
+      el.loadExampleBtn.addEventListener("click", () => loadExampleConfig(el.exampleConfigSelect.value));
+      bindCursorDrag();
+
+      el.toggleSideBtn.addEventListener("click", () => setSideCollapsed(!el.mainRow.classList.contains("side-collapsed")));
+      el.sideTitle.addEventListener("click", () => {
+        if (el.mainRow.classList.contains("side-collapsed")) setSideCollapsed(false);
+      });
+
+      el.shareBtn.addEventListener("click", async () => {
+        const url = buildShareUrl(buildConfigFromUi());
+        history.replaceState(null, "", url);
+        let copied = false;
+        try {
+          if (navigator.clipboard && navigator.clipboard.writeText) {
+            await navigator.clipboard.writeText(url);
+            copied = true;
+          }
+        } catch (_) {
+          copied = false;
+        }
+        if (copied) {
+          alert("Konfigurations-URL wurde erzeugt und in die Zwischenablage kopiert.");
+        } else {
+          // Im file://-Kontext ist die Zwischenablage nicht verfügbar.
+          window.prompt("Zwischenablage nicht verfügbar. URL bitte manuell kopieren:", url);
+        }
+      });
+      el.exportJsonBtn.addEventListener("click", downloadScenarioPackage);
+      el.importJsonBtn.addEventListener("click", () => el.importJsonInput.click());
+      el.importJsonInput.addEventListener("change", async ev => {
+        const file = ev.target.files && ev.target.files[0];
+        if (!file) return;
+        try {
+          const text = await file.text();
+          const parsed = JSON.parse(text);
+          applyScenarioPackage(parsed);
+          let msg = "JSON erfolgreich geladen. Beispielkonfigurationen wurden übernommen.";
+          if (droppedCommandCount > 0) {
+            msg += `\n${droppedCommandCount} Befehl(e) mit nicht mehr unterstützter Art oder Marktpartner (z. B. LF2, flexband, adhocZyklisch) wurden verworfen.`;
+          }
+          alert(msg);
+        } catch (err) {
+          alert(`JSON konnte nicht geladen werden: ${err.message || err}`);
+        } finally {
+          el.importJsonInput.value = "";
+        }
+      });
+      el.resetBtn.addEventListener("click", () => {
+        // Ohne Neuladen zurücksetzen: unter file:// ist location.href-Manipulation unzuverlässig.
+        history.replaceState(null, "", String(location.href).split("#")[0].split("?")[0]);
+        state.catalogs = {
+          examples: JSON.parse(JSON.stringify(EXAMPLE_CONFIGS))
+        };
+        renderCatalogSelects();
+        applyConfigToUi({
+          commands: [],
+          disturbances: {}
+        }, { resetMissingValues: true });
+      });
+
+      [
+        el.wanEnabled, el.wanFrom, el.wanTo,
+        el.localEnabled, el.localFrom, el.localTo,
+        el.powerEnabled, el.powerFrom, el.powerTo,
+        el.plantMaxLpc, el.plantMaxLpp
+      ].forEach(input => input.addEventListener("input", () => update()));
+
+      el.commandsContainer.addEventListener("input", ev => {
+        const cmdEl = ev.target.closest(".cmd");
+        if (!cmdEl) return;
+        const cmd = state.commands.find(c => String(c.id) === cmdEl.dataset.id);
+        if (!cmd) return;
+        const field = ev.target.dataset.field;
+        if (!field) return;
+        if (field === "pMax" || field === "durationMin") cmd[field] = toNum(ev.target.value, 0);
+        else cmd[field] = ev.target.value;
+        // Beim Wechsel von Art/Richtung die Standard-Stufen der Richtung nachziehen (nur wenn nicht angepasst).
+        if ((field === "type" || field === "direction") && Object.values(SOFTSTART_DEFAULT_STEPS).includes(cmd.steps)) {
+          cmd.steps = SOFTSTART_DEFAULT_STEPS[cmd.direction];
+        }
+        // Typwechsel blendet Felder um, deshalb neu aufbauen; sonst nur Hinweise auffrischen.
+        if (field === "type" || (field === "direction" && cmd.type === "softstart")) renderCommands();
+        else refreshCommandIssues();
+        update();
+      });
+
+      el.commandsContainer.addEventListener("click", ev => {
+        const btn = ev.target.closest("button");
+        const cmdEl = ev.target.closest(".cmd");
+        if (!btn || !cmdEl || btn.dataset.action !== "remove") return;
+        state.commands = state.commands.filter(c => String(c.id) !== cmdEl.dataset.id);
+        renderCommands();
+        update();
+      });
+    }
+
+    function init() {
+      renderCatalogSelects();
+      renderCommands();
+      bind();
+      let collapsed = false;
+      try { collapsed = localStorage.getItem(SIDE_STORAGE_KEY) === "1"; } catch (_) {}
+      setSideCollapsed(collapsed, false);
+      applyUrlConfig();
+      update();
+    }
+
+    init();
+  </script>
+</body>
+</html>
