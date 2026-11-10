@@ -658,9 +658,9 @@ components:
 
           anyOf:
             - required:
-                - communicationFailureValuesConsumption
+                - wanFailureValuesConsumption
             - required:
-                - communicationFailureValuesProduction
+                - wanFailureValuesProduction
 
 
 
