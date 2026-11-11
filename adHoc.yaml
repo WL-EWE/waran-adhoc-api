@@ -1,8 +1,7 @@
-openapi: 3.2.0
-
+openapi: 3.1.3
 info:
   title: WARAN - Impuls zur Anpassung der Ad-Hoc-Steuerungs-API (FNN Variante)
-  version: 0.9.6
+  version: 0.9.7
   description: >
     Aufbauend auf dem bereits existierenden API-Webdienst zur prozessualen Abwicklung von Steuerungshandlungen (https://edi-energy.github.io/api-electricity/aktuell-gueltig/#/), werden im vorliegenden Abschnitt Erweiterungen vorgeschlagen, die es den Marktakteuren ermöglichen das volle Potential der Ad-hoc Steuerung zu nutzen. Der Vorschlag orientiert sich an der bisherigen, gültigen Version, ist aber nicht kompatibel da neue Dienste und Strukturen bzw. Bezeichnungen verwendet werden. Es handelt sich somit um einen fachlichen Vorschlag für ein neues Major Release. 
     
@@ -90,7 +89,7 @@ paths:
       tags: [Anweisung AdHoc Steuerungshandlung]
       summary: AdHoc-02 -> Softstartprofil
       description: >
-        Ein Softstart Ad-hoc Profil (LPC/LPP SSt) welches dediziert auf der Steuerungseinrichtung hinterlegt wird und nur bei einer lokalen Spannungsunterbrechung aktiviert wird. Wird mit höchster Priorität ausgeführt und übersteuert somit das Ad-hoc Residualprofil (LPC RP / LPP RP). Sofern die Verbindung zum Backend wieder hergestellt ist, wird ein aktiviertes Softstartprofil über den API Dienst "AdHoc-08" transparent gemacht und kann über den API Dienst "AdHoc-05" zurückgesetzt werden. Soll ein bereits hinterlegtes Softartprofil von der Steuerungseinrichtung entfernt werden, muss ein leeres Softstartprofil gesendet werden. **(TBD!)** 
+        Ein Softstart Ad-hoc Profil (LPC/LPP SSt) welches dediziert auf der Steuerungseinrichtung hinterlegt wird und nur bei einer lokalen Spannungsunterbrechung aktiviert wird. Wird mit höchster Priorität ausgeführt und übersteuert somit das Ad-hoc Residualprofil (LPC RP / LPP RP). Sofern die Verbindung zum Backend wieder hergestellt ist, wird ein aktiviertes Softstartprofil über den API Dienst "AdHoc-08" transparent gemacht und kann über den API Dienst "AdHoc-05" zurückgesetzt werden. 
         Die Softstart Profile entsprechen den Steuerungsanwendungsfällen 5 und 6 gemäß Implementierungshinweis des BSI (SAF5 / SAF6). 
 
 
@@ -240,10 +239,10 @@ paths:
       tags: [Anweisung AdHoc Steuerungshandlung]
       summary: AdHoc-05 -> Ruecknahme Ad-hoc-Steuerungen
       description: >
-        Erlaubt die Deaktivierung oder das Zurücksetzen von zuvor übermittelten AdHoc Steuerungsprofilen. Es werden alle betroffenen Einträge des Absenders, die nach dem gewünschten Änderungszeitpunkt liegen, im jeweiligen AdHoc Profil adressiert (also gelöscht oder zurückgesetzt). Für die Profile "AdHoc-01" und "AdHoc-02" bedeutet der Aufruf, dass alle Einträge nach der definierten "adHocStopTime" aus dem jeweiligen Residualprofil entfernt werden und somit nicht mehr bzw. nur verkürzt als bis zur Endzeit umgesetzt werden. Für das Softstart Profil "AdHoc-03" gilt eine Besonderheit, hier sorgt der Reset-Aufruf lediglich für ein Zurücksetzen des aktiven Softstartprofils zum gewünschten Zeitpunkt. Diese ist nur umsetzbar, sofern auch ein Softstart aktiviert wurde (diese Information wird über den entsprechenden Informationsdienst "AdHoc-08" transparent gemacht). Das grundsätzliche Softstartprofil bleibt also erhalten und wird nach der nächsten Spannungsunterbrechung erneut aktiviert. Soll das Softstartprofil von der Steuerungseinrichtung entfernt werden, muss über den entsprechnden Aufruf "AdHoc-03" ein leeres Softstartprofil gesendet werden.
+        Erlaubt die Deaktivierung oder das Zurücksetzen von zuvor übermittelten AdHoc Steuerungsprofilen. Es werden alle betroffenen Einträge des Absenders, die nach dem gewünschten Änderungszeitpunkt liegen, im jeweiligen AdHoc Profil adressiert (also gelöscht oder zurückgesetzt). Für die Profile "AdHoc-01" und "AdHoc-03" und "AdHoc-04" bedeutet der Aufruf, dass alle Einträge nach der definierten "adHocStopTime" entfernt werden und somit nicht mehr bzw. nur verkürzt also bis zur Endzeit umgesetzt werden. Für das Softstart Profil "AdHoc-02" gilt eine Besonderheit, hier muss zusätzlich angegeben werden, ob die Werte gelöscht werden sollen (deleteSoftstart=true) oder nur zurückgesetzt werden sollen (deleteSoftstart=false). Das Zuruecksetzen setzt voraus, das ein Softstart aktiviert wurde (diese Information wird über den entsprechenden Informationsdienst "AdHoc-08" transparent gemacht). Das grundsätzliche Softstartprofil bleibtn bei Zuruecksetzen also erhalten und wird nach der nächsten Spannungsunterbrechung erneut aktiviert. 
 
 
-        Wird keine "adHocStopTime" angegeben, wirkt der Befehl unverzüglich. Wenn kein "stopProfile" angegeben wird, wirkt der Befehl für alle aktiven Profile des Absenders. Betroffen sind immer beide Energierichtungen.
+        Wird keine "adHocStopTime" angegeben, wirkt der Befehl unverzüglich. Betroffen sind immer beide Energierichtungen.
 
       operationId: postInitialZustand
       parameters:
@@ -515,8 +514,8 @@ components:
 
     AdHocItem:
       allOf:
-        - $ref: '#/components/schemas/LocationReference'
-        - type: object     
+        - $ref: '#/components/schemas/LocationReference'       
+        - type: object
           properties:
             maximumPowerValuesConsumption:
               type: array
@@ -532,13 +531,12 @@ components:
                 $ref: '#/components/schemas/PowerLimits'
 
           anyOf:
-            - type: object
+            - title: Verbrauchslimit (maximumPowerValuesConsumption)
               required:
                 - maximumPowerValuesConsumption
-
-            - type: object
+            - title: Einspeiselimit (maximumPowerValuesProduction)
               required:
-                - maximumPowerValuesProduction
+               - maximumPowerValuesProduction
 
     AdHocRequest:
       $ref: '#/components/schemas/AdHocItem'
@@ -710,20 +708,46 @@ components:
 
     InitialZustandRequest:
       allOf:
-          - $ref: '#/components/schemas/LocationReference'  
-          - type: object
-            properties:
-        
-              adHocStopTime:
-                type: string
-                format: date-time
-              stopProfile:
-                type: string
-                example: "AdHoc-01"
-                enum:
-                  - AdHoc-01
-                  - AdHoc-02
-                  - AdHoc-03
+        - $ref: '#/components/schemas/LocationReference'
+        - oneOf:
+            - type: object
+              description: >
+                Ruecknahme der Steuerungsanweisung(en) (AdHoc-01),
+                der Failsafe-Werte (AdHoc-03) oder der Kommunikationsausfall-Werte (AdHoc-04). Das Feld deleteSofstart darf entfallen
+              required:
+                - stopProfile
+              properties:
+                stopProfile:
+                  type: string
+                  enum:
+                    - AdHoc-01
+                    - AdHoc-03
+                    - AdHoc-04
+                adHocStopTime:
+                  type: string
+                  format: date-time
+                  description: Ohne Zeitangabe wird das angegebene Profil schnellstmöglich beendet.
+
+
+            - type: object
+              description: >
+                Ruecknahme der Softstart-Werte (AdHoc-02).
+                In diesem Fall muss das Feld deleteSofstart angegeben werden.
+              required:
+                - stopProfile
+                - deleteSofstart
+              properties:
+                stopProfile:
+                  type: string
+                  enum:
+                    - AdHoc-02
+                adHocStopTime:
+                  type: string
+                  format: date-time
+                  description: Ohne Zeitangabe wird das angegebene Profil schnellstmöglich beendet.
+
+                deleteSofstart:
+                  type: boolean
 
 
     PreliminaryResponse:
