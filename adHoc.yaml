@@ -339,7 +339,7 @@ paths:
       tags: [Antwort AdHoc Steuerungshandlung]
       summary: AdHoc-07 -> Finale Antwort
       description: >
-       Anpassung und Erweiterung der finalen Rückmeldung. Unter anderem wurden zusätzliche ResponseCodes eingeführt, um eine möglichst präzise Rückmeldung an den auslösenden Akteur zu übermitteln.
+       Anpassung und Erweiterung der finalen Rückmeldung. Unter anderem wurde das aktuelle Residualprofil, sowie zusätzliche ResponseCodes eingeführt, um eine möglichst präzise Rückmeldung an den auslösenden Akteur zu übermitteln.
 
        Die finale Antwort wird unmittelbar nach erfolgreicher Konfiguration der Steuerungsanweisung versendet, d.h. sobald die Steuerungseinrichtung den Befehl erfolgreich entgegengenommen hat.
 
